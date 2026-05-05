@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>甘蔗媽媽 · 出勤打卡</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap');
+
+  :root {
+    --green: #2D6A4F;
+    --green-light: #40916C;
+    --green-pale: #D8F3DC;
+    --yellow: #F4C430;
+    --yellow-dark: #D4A017;
+    --bg: #FAFAF7;
+    --text: #1A1A1A;
+    --text-muted: #6B7280;
+    --card: #FFFFFF;
+    --border: #E5E7EB;
+    --red: #DC2626;
+    --red-pale: #FEE2E2;
+
+    /* ── Google Apps Script URL ── */
+    --APPS_SCRIPT_URL: '';
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    font-family: 'Noto Sans TC', sans-serif;
+    background: var(--bg);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0 16px 40px;
+  }
+
+  /* ── Header ── */
+  .header {
+    width: 100%;
+    max-width: 480px;
+    padding: 32px 0 20px;
+    text-align: center;
+  }
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+  .brand-icon {
+    width: 44px; height: 44px;
+    background: var(--green);
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+  }
+  .brand-name {
+    font-size: 22px;
+    font-weight: 900;
+    color: var(--green);
+    letter-spacing: 2px;
+  }
+  .sub-title {
+    font-size: 13px;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+  }
+
+  /* ── Clock ── */
+  .clock-block {
+    width: 100%;
+    max-width: 480px;
+    background: var(--green);
+    border-radius: 20px;
+    padding: 28px 24px;
+    color: white;
+    text-align: center;
+    margin-bottom: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .clock-block::before {
+    content: '🌿';
+    position: absolute;
+    font-size: 120px;
+    opacity: 0.07;
+    top: -20px; right: -20px;
+    line-height: 1;
+  }
+  .clock-time {
+    font-size: 56px;
+    font-weight: 900;
+    letter-spacing: -1px;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .clock-date {
+    font-size: 15px;
+    opacity: 0.8;
+    margin-top: 6px;
+    letter-spacing: 1px;
+  }
+  .clock-shift-info {
+    margin-top: 14px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 10px;
+    padding: 10px 16px;
+    font-size: 13px;
+    opacity: 0.9;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  /* ── Card ── */
+  .card {
+    width: 100%;
+    max-width: 480px;
+    background: var(--card);
+    border-radius: 20px;
+    padding: 24px;
+    margin-bottom: 16px;
+    border: 1.5px solid var(--border);
+  }
+  .card-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: 2px;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+  }
+
+  /* ── Employee Select ── */
+  .select-wrap {
+    position: relative;
+  }
+  select {
+    width: 100%;
+    padding: 16px 44px 16px 16px;
+    font-size: 18px;
+    font-weight: 700;
+    font-family: 'Noto Sans TC', sans-serif;
+    color: var(--text);
+    background: var(--bg);
+    border: 2px solid var(--border);
+    border-radius: 14px;
+    appearance: none;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+  select:focus { outline: none; border-color: var(--green); }
+  .select-arrow {
+    position: absolute;
+    right: 16px; top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    color: var(--text-muted);
+    font-size: 16px;
+  }
+
+  /* ── Punch Buttons ── */
+  .btn-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 4px;
+  }
+  .btn {
+    padding: 22px 16px;
+    border: none;
+    border-radius: 16px;
+    font-size: 17px;
+    font-weight: 700;
+    font-family: 'Noto Sans TC', sans-serif;
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.2s, opacity 0.2s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    letter-spacing: 1px;
+  }
+  .btn:active { transform: scale(0.96); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-icon { font-size: 28px; }
+
+  .btn-in {
+    background: var(--green);
+    color: white;
+    box-shadow: 0 4px 20px rgba(45,106,79,0.35);
+  }
+  .btn-in:hover:not(:disabled) { box-shadow: 0 6px 28px rgba(45,106,79,0.5); }
+
+  .btn-out {
+    background: var(--yellow);
+    color: var(--text);
+    box-shadow: 0 4px 20px rgba(244,196,48,0.35);
+  }
+  .btn-out:hover:not(:disabled) { box-shadow: 0 6px 28px rgba(244,196,48,0.5); }
+
+  /* ── Status ── */
+  .status-box {
+    margin-top: 16px;
+    padding: 14px 16px;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 500;
+    display: none;
+    align-items: center;
+    gap: 10px;
+    line-height: 1.5;
+  }
+  .status-box.show { display: flex; }
+  .status-success { background: var(--green-pale); color: var(--green); }
+  .status-error { background: var(--red-pale); color: var(--red); }
+  .status-late { background: #FFF7ED; color: #C2410C; }
+  .status-icon { font-size: 20px; flex-shrink: 0; }
+
+  /* ── Today Log ── */
+  .log-list { display: flex; flex-direction: column; gap: 10px; }
+  .log-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    background: var(--bg);
+    border-radius: 12px;
+    font-size: 14px;
+  }
+  .log-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .log-dot.in { background: var(--green); }
+  .log-dot.out { background: var(--yellow-dark); }
+  .log-name { font-weight: 700; flex: 1; }
+  .log-time { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .log-badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 20px;
+    letter-spacing: 0.5px;
+  }
+  .badge-late { background: #FEE2E2; color: var(--red); }
+  .badge-ok { background: var(--green-pale); color: var(--green); }
+  .badge-early { background: #FFF7ED; color: #C2410C; }
+
+  .empty-log {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 14px;
+    padding: 20px 0;
+  }
+
+  /* ── Loading ── */
+  .loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(255,255,255,0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    display: none;
+  }
+  .loading-overlay.show { display: flex; }
+  .spinner {
+    width: 44px; height: 44px;
+    border: 4px solid var(--green-pale);
+    border-top-color: var(--green);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Footer ── */
+  .footer {
+    margin-top: 12px;
+    font-size: 12px;
+    color: var(--text-muted);
+    text-align: center;
+  }
+  .footer a { color: var(--green); text-decoration: none; font-weight: 700; }
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+</div>
+
+<!-- Header -->
+<div class="header">
+  <div class="brand">
+    <div class="brand-icon">🧃</div>
+    <span class="brand-name">甘蔗媽媽</span>
+  </div>
+  <div class="sub-title">員工出勤打卡系統</div>
+</div>
+
+<!-- Clock -->
+<div class="clock-block">
+  <div class="clock-time" id="clockTime">00:00:00</div>
+  <div class="clock-date" id="clockDate">載入中…</div>
+  <div class="clock-shift-info" id="shiftInfo">⏳ 請選擇員工查看班表資訊</div>
+</div>
+
+<!-- 選擇員工 + 打卡 -->
+<div class="card">
+  <div class="card-label">選擇員工</div>
+  <div class="select-wrap">
+    <select id="empSelect" onchange="onEmpChange()">
+      <option value="">── 請選擇姓名 ──</option>
+    </select>
+    <span class="select-arrow">▾</span>
+  </div>
+
+  <div style="margin-top:20px;">
+    <div class="card-label">打卡</div>
+    <div class="btn-row">
+      <button class="btn btn-in" id="btnIn" onclick="punch('in')" disabled>
+        <span class="btn-icon">🟢</span>上班打卡
+      </button>
+      <button class="btn btn-out" id="btnOut" onclick="punch('out')" disabled>
+        <span class="btn-icon">🟡</span>下班打卡
+      </button>
+    </div>
+  </div>
+
+  <div class="status-box" id="statusBox">
+    <span class="status-icon" id="statusIcon"></span>
+    <span id="statusMsg"></span>
+  </div>
+</div>
+
+<!-- 今日出勤紀錄 -->
+<div class="card">
+  <div class="card-label">今日出勤紀錄</div>
+  <div class="log-list" id="logList">
+    <div class="empty-log">載入中…</div>
+  </div>
+</div>
+
+<div class="footer">
+  管理者後台 → <a href="admin.html">admin.html</a>
+</div>
+
+<script>
+// ══════════════════════════════════════════
+//  設定區：填入你的 Apps Script URL
+// ══════════════════════════════════════════
+const APPS_SCRIPT_URL = ''; // ← 部署後貼上
+
+const WEEKDAYS = ['日','一','二','三','四','五','六'];
+
+// ── 時鐘 ──
+function updateClock() {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2,'0');
+  const m = String(now.getMinutes()).padStart(2,'0');
+  const s = String(now.getSeconds()).padStart(2,'0');
+  document.getElementById('clockTime').textContent = `${h}:${m}:${s}`;
+  document.getElementById('clockDate').textContent =
+    `${now.getFullYear()} / ${now.getMonth()+1} / ${now.getDate()} （週${WEEKDAYS[now.getDay()]}）`;
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ── 資料快取 ──
+let employees = [];   // [{id, name, wage_tier}]
+let todayShifts = {}; // {empId: {start:'09:00', end:'18:00'}} or null
+let todayLog = [];    // [{empId, name, type:'in'|'out', time, status}]
+
+// ── 初始化 ──
+async function init() {
+  if (!APPS_SCRIPT_URL) {
+    renderEmployees([{id:'demo1',name:'測試員工A'},{id:'demo2',name:'測試員工B'}]);
+    renderLog([]);
+    return;
+  }
+  try {
+    const res = await apiFetch('getInitData');
+    employees = res.employees || [];
+    todayShifts = res.todayShifts || {};
+    todayLog = res.todayLog || [];
+    renderEmployees(employees);
+    renderLog(todayLog);
+  } catch(e) {
+    showStatus('error','⚠️ 無法連線，請確認網路或聯絡管理者');
+  }
+}
+
+function renderEmployees(list) {
+  const sel = document.getElementById('empSelect');
+  sel.innerHTML = '<option value="">── 請選擇姓名 ──</option>';
+  list.forEach(e => {
+    const opt = document.createElement('option');
+    opt.value = e.id;
+    opt.textContent = e.name;
+    sel.appendChild(opt);
+  });
+}
+
+function renderLog(log) {
+  const el = document.getElementById('logList');
+  if (!log.length) { el.innerHTML = '<div class="empty-log">今日尚無打卡紀錄</div>'; return; }
+  el.innerHTML = log.map(r => {
+    const dotClass = r.type === 'in' ? 'in' : 'out';
+    const typeLabel = r.type === 'in' ? '上班' : '下班';
+    let badge = '';
+    if (r.status === 'late') badge = '<span class="log-badge badge-late">遲到</span>';
+    else if (r.status === 'early') badge = '<span class="log-badge badge-early">早退</span>';
+    else if (r.type === 'in') badge = '<span class="log-badge badge-ok">準時</span>';
+    return `<div class="log-item">
+      <div class="log-dot ${dotClass}"></div>
+      <span class="log-name">${r.name}</span>
+      <span class="log-time">${r.time} ${typeLabel}</span>
+      ${badge}
+    </div>`;
+  }).join('');
+}
+
+// ── 選員工 ──
+function onEmpChange() {
+  const empId = document.getElementById('empSelect').value;
+  const btnIn = document.getElementById('btnIn');
+  const btnOut = document.getElementById('btnOut');
+  const shiftEl = document.getElementById('shiftInfo');
+  clearStatus();
+
+  if (!empId) {
+    btnIn.disabled = btnOut.disabled = true;
+    shiftEl.textContent = '⏳ 請選擇員工查看班表資訊';
+    return;
+  }
+
+  // 班表資訊
+  const shift = todayShifts[empId];
+  if (shift) {
+    shiftEl.textContent = `📋 今日班表：${shift.start} ～ ${shift.end}`;
+  } else {
+    shiftEl.textContent = '📭 今日無排班（休假）';
+  }
+
+  // 判斷已打卡狀態
+  const myLog = todayLog.filter(r => r.empId === empId);
+  const hasIn = myLog.some(r => r.type === 'in');
+  const hasOut = myLog.some(r => r.type === 'out');
+
+  btnIn.disabled = hasIn;
+  btnOut.disabled = !hasIn || hasOut;
+}
+
+// ── 打卡 ──
+async function punch(type) {
+  const empId = document.getElementById('empSelect').value;
+  if (!empId) { showStatus('error','⚠️ 請先選擇員工'); return; }
+
+  const emp = employees.find(e => e.id === empId);
+  const empName = emp ? emp.name : empId;
+  const now = new Date();
+  const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+
+  setLoading(true);
+  clearStatus();
+
+  if (!APPS_SCRIPT_URL) {
+    // Demo mode
+    setTimeout(() => {
+      setLoading(false);
+      const r = {empId, name: empName, type, time: timeStr, status: type==='in' ? 'ok' : ''};
+      todayLog.push(r);
+      renderLog(todayLog);
+      onEmpChange();
+      if (type === 'in') showStatus('success', `✅ ${empName} 上班打卡成功！${timeStr}`);
+      else showStatus('success', `✅ ${empName} 下班打卡成功！${timeStr}`);
+    }, 800);
+    return;
+  }
+
+  try {
+    const res = await apiFetch('punch', { empId, type, timestamp: now.toISOString() });
+    setLoading(false);
+
+    if (res.success) {
+      todayLog = res.todayLog || todayLog;
+      renderLog(todayLog);
+      onEmpChange();
+
+      if (type === 'in') {
+        if (res.status === 'late') {
+          showStatus('late', `⚠️ ${empName} 上班打卡 ${timeStr}（遲到 ${res.lateMinutes} 分鐘）`);
+        } else {
+          showStatus('success', `✅ ${empName} 上班打卡成功！${timeStr}`);
+        }
+      } else {
+        if (res.status === 'early') {
+          showStatus('late', `⚠️ ${empName} 下班打卡 ${timeStr}（早退 ${res.earlyMinutes} 分鐘）`);
+        } else {
+          showStatus('success', `✅ ${empName} 下班打卡成功！${timeStr}`);
+        }
+      }
+    } else {
+      showStatus('error', `❌ ${res.message || '打卡失敗，請再試一次'}`);
+    }
+  } catch(e) {
+    setLoading(false);
+    showStatus('error','❌ 連線失敗，請重試');
+  }
+}
+
+// ── 工具 ──
+function showStatus(type, msg) {
+  const box = document.getElementById('statusBox');
+  box.className = 'status-box show';
+  if (type === 'success') box.classList.add('status-success');
+  else if (type === 'error') box.classList.add('status-error');
+  else if (type === 'late') box.classList.add('status-late');
+  document.getElementById('statusMsg').textContent = msg;
+}
+function clearStatus() {
+  const box = document.getElementById('statusBox');
+  box.className = 'status-box';
+  document.getElementById('statusMsg').textContent = '';
+}
+function setLoading(show) {
+  document.getElementById('loadingOverlay').classList.toggle('show', show);
+}
+async function apiFetch(action, data={}) {
+  const params = new URLSearchParams({ action, ...data });
+  const res = await fetch(`${APPS_SCRIPT_URL}?${params}`);
+  return res.json();
+}
+
+init();
+</script>
+</body>
+</html>

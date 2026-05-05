@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>甘蔗媽媽 · 管理後台</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap');
+
+  :root {
+    --green: #2D6A4F;
+    --green-light: #40916C;
+    --green-pale: #D8F3DC;
+    --yellow: #F4C430;
+    --yellow-dark: #D4A017;
+    --bg: #F4F6F3;
+    --bg2: #EAEDE7;
+    --text: #1A1A1A;
+    --text-muted: #6B7280;
+    --card: #FFFFFF;
+    --border: #E2E6DF;
+    --red: #DC2626;
+    --red-pale: #FEE2E2;
+    --sidebar-w: 220px;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Noto Sans TC',sans-serif; background:var(--bg); color:var(--text); display:flex; min-height:100vh; }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    width: var(--sidebar-w);
+    background: var(--green);
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    z-index: 10;
+  }
+  .sidebar-brand {
+    padding: 28px 20px 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.15);
+  }
+  .sidebar-brand-name { font-size: 18px; font-weight: 900; color: white; letter-spacing: 2px; }
+  .sidebar-brand-sub { font-size: 11px; color: rgba(255,255,255,0.6); margin-top: 3px; letter-spacing: 1px; }
+  .sidebar-nav { flex: 1; padding: 16px 0; }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 20px;
+    color: rgba(255,255,255,0.75);
+    font-size: 14px; font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    border-left: 3px solid transparent;
+    letter-spacing: 0.5px;
+  }
+  .nav-item:hover { background: rgba(255,255,255,0.1); color: white; }
+  .nav-item.active { background: rgba(255,255,255,0.15); color: white; border-left-color: var(--yellow); font-weight: 700; }
+  .nav-icon { font-size: 16px; width: 20px; text-align: center; }
+  .sidebar-footer { padding: 16px 20px; border-top: 1px solid rgba(255,255,255,0.15); }
+  .sidebar-footer a { color: rgba(255,255,255,0.6); font-size: 12px; text-decoration: none; }
+  .sidebar-footer a:hover { color: white; }
+
+  /* ── Main ── */
+  .main { margin-left: var(--sidebar-w); flex: 1; display: flex; flex-direction: column; }
+  .topbar {
+    background: var(--card);
+    padding: 16px 32px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1.5px solid var(--border);
+    position: sticky; top: 0; z-index: 5;
+  }
+  .page-title { font-size: 20px; font-weight: 900; letter-spacing: 1px; }
+  .topbar-date { font-size: 13px; color: var(--text-muted); }
+
+  .content { padding: 28px 32px; flex: 1; }
+
+  /* ── Tab Pages ── */
+  .tab-page { display: none; }
+  .tab-page.active { display: block; }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--card);
+    border-radius: 16px;
+    border: 1.5px solid var(--border);
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+  .card-title {
+    font-size: 15px; font-weight: 800;
+    color: var(--green);
+    margin-bottom: 18px;
+    letter-spacing: 1px;
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  /* ── Stat Row ── */
+  .stat-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; margin-bottom: 20px; }
+  .stat-card {
+    background: var(--card);
+    border-radius: 14px;
+    border: 1.5px solid var(--border);
+    padding: 20px;
+  }
+  .stat-label { font-size: 12px; color: var(--text-muted); font-weight: 700; letter-spacing: 1px; margin-bottom: 6px; }
+  .stat-val { font-size: 30px; font-weight: 900; color: var(--green); line-height: 1; }
+  .stat-unit { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+
+  /* ── Table ── */
+  .tbl-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th {
+    background: var(--bg2);
+    padding: 10px 14px;
+    text-align: left;
+    font-size: 12px; font-weight: 800;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    white-space: nowrap;
+  }
+  td { padding: 11px 14px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--bg); }
+  .badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px; font-weight: 800;
+    letter-spacing: 0.5px;
+  }
+  .badge-late { background: var(--red-pale); color: var(--red); }
+  .badge-ok { background: var(--green-pale); color: var(--green); }
+  .badge-early { background: #FFF7ED; color: #C2410C; }
+  .badge-off { background: var(--bg2); color: var(--text-muted); }
+  .badge-absent { background: #FEE2E2; color: #991B1B; }
+
+  /* ── Forms ── */
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px,1fr)); gap: 14px; }
+  .form-group label { font-size: 12px; font-weight: 700; color: var(--text-muted); letter-spacing: 1px; display: block; margin-bottom: 6px; }
+  input[type=text], input[type=number], input[type=time], input[type=date], select.form-sel {
+    width: 100%;
+    padding: 10px 12px;
+    font-size: 14px;
+    font-family: 'Noto Sans TC', sans-serif;
+    color: var(--text);
+    background: var(--bg);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    transition: border-color 0.2s;
+  }
+  input:focus, select.form-sel:focus { outline: none; border-color: var(--green); }
+
+  .btn-primary {
+    background: var(--green); color: white;
+    border: none; border-radius: 10px;
+    padding: 10px 22px;
+    font-size: 14px; font-weight: 700;
+    font-family: 'Noto Sans TC', sans-serif;
+    cursor: pointer;
+    transition: opacity 0.15s;
+    letter-spacing: 0.5px;
+  }
+  .btn-primary:hover { opacity: 0.88; }
+  .btn-danger {
+    background: var(--red); color: white;
+    border: none; border-radius: 8px;
+    padding: 5px 12px;
+    font-size: 12px; font-weight: 700;
+    font-family: 'Noto Sans TC', sans-serif;
+    cursor: pointer;
+  }
+  .btn-sm {
+    padding: 5px 12px;
+    font-size: 12px; border-radius: 8px;
+  }
+
+  /* ── Schedule Grid ── */
+  .sched-grid { display: grid; gap: 8px; }
+  .sched-row { display: grid; grid-template-columns: 100px repeat(7,1fr); gap: 6px; align-items: center; }
+  .sched-emp-name { font-size: 13px; font-weight: 700; }
+  .sched-cell input {
+    width: 100%;
+    padding: 6px 8px;
+    font-size: 12px;
+    font-family: 'Noto Sans TC', sans-serif;
+    background: var(--bg);
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+  }
+  .sched-cell input:focus { outline: none; border-color: var(--green); }
+  .sched-header { font-size: 11px; font-weight: 800; color: var(--text-muted); text-align: center; letter-spacing: 1px; }
+  .sched-today { background: var(--green-pale); border-radius: 8px; }
+
+  /* ── Month Picker ── */
+  .month-row { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+  .month-row input[type=month] {
+    padding: 8px 12px;
+    font-size: 14px;
+    font-family: 'Noto Sans TC', sans-serif;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg);
+  }
+
+  /* ── Payroll Table ── */
+  .pay-total { font-weight: 800; color: var(--green); }
+
+  /* ── Toast ── */
+  .toast {
+    position: fixed; bottom: 24px; right: 24px;
+    background: var(--green); color: white;
+    padding: 12px 22px;
+    border-radius: 12px;
+    font-size: 14px; font-weight: 700;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    z-index: 999;
+    transform: translateY(80px); opacity: 0;
+    transition: transform 0.3s, opacity 0.3s;
+  }
+  .toast.show { transform: translateY(0); opacity: 1; }
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <div style="font-size:24px;margin-bottom:6px">🧃</div>
+    <div class="sidebar-brand-name">甘蔗媽媽</div>
+    <div class="sidebar-brand-sub">管理者後台</div>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-item active" onclick="switchTab('dashboard')">
+      <span class="nav-icon">📊</span>今日總覽
+    </div>
+    <div class="nav-item" onclick="switchTab('attendance')">
+      <span class="nav-icon">🕐</span>出勤查詢
+    </div>
+    <div class="nav-item" onclick="switchTab('schedule')">
+      <span class="nav-icon">📅</span>班表管理
+    </div>
+    <div class="nav-item" onclick="switchTab('payroll')">
+      <span class="nav-icon">💴</span>薪資計算
+    </div>
+    <div class="nav-item" onclick="switchTab('employees')">
+      <span class="nav-icon">👥</span>員工管理
+    </div>
+    <div class="nav-item" onclick="switchTab('settings')">
+      <span class="nav-icon">⚙️</span>系統設定
+    </div>
+  </nav>
+  <div class="sidebar-footer">
+    <a href="index.html">← 返回打卡頁</a>
+  </div>
+</aside>
+
+<!-- Main -->
+<div class="main">
+  <div class="topbar">
+    <div class="page-title" id="pageTitle">今日總覽</div>
+    <div class="topbar-date" id="topbarDate"></div>
+  </div>
+
+  <div class="content">
+
+    <!-- ① 今日總覽 -->
+    <div class="tab-page active" id="tab-dashboard">
+      <div class="stat-row">
+        <div class="stat-card">
+          <div class="stat-label">今日排班</div>
+          <div class="stat-val" id="s-scheduled">—</div>
+          <div class="stat-unit">人</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">已打卡上班</div>
+          <div class="stat-val" id="s-checked-in">—</div>
+          <div class="stat-unit">人</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">遲到</div>
+          <div class="stat-val" id="s-late" style="color:var(--red)">—</div>
+          <div class="stat-unit">人</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">尚未打卡</div>
+          <div class="stat-val" id="s-absent">—</div>
+          <div class="stat-unit">人</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">🕐 今日出勤狀況</div>
+        <div class="tbl-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>員工</th><th>今日班表</th><th>上班打卡</th><th>下班打卡</th><th>工時</th><th>狀態</th>
+              </tr>
+            </thead>
+            <tbody id="dashboardTbody">
+              <tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px">
+                請先設定 Apps Script URL（系統設定）才能顯示資料
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ② 出勤查詢 -->
+    <div class="tab-page" id="tab-attendance">
+      <div class="card">
+        <div class="card-title">🔍 查詢條件</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>月份</label>
+            <input type="month" id="attMonth">
+          </div>
+          <div class="form-group">
+            <label>員工</label>
+            <select class="form-sel" id="attEmp">
+              <option value="">全部員工</option>
+            </select>
+          </div>
+          <div class="form-group" style="display:flex;align-items:flex-end">
+            <button class="btn-primary" onclick="loadAttendance()">查詢</button>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">📋 出勤明細</div>
+        <div class="tbl-wrap">
+          <table>
+            <thead>
+              <tr><th>日期</th><th>員工</th><th>班表</th><th>上班</th><th>下班</th><th>實際工時</th><th>遲到(分)</th><th>狀態</th></tr>
+            </thead>
+            <tbody id="attTbody">
+              <tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px">請選擇查詢條件</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ③ 班表管理 -->
+    <div class="tab-page" id="tab-schedule">
+      <div class="card">
+        <div class="card-title">📅 週班表編輯</div>
+        <div class="month-row">
+          <span style="font-size:13px;font-weight:700;color:var(--text-muted)">選擇週起始日</span>
+          <input type="date" id="schedWeekStart" onchange="renderScheduleGrid()">
+          <button class="btn-primary btn-sm" onclick="saveSchedule()">💾 儲存班表</button>
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px">
+          格式：<code>09:00-18:00</code>，空白＝休假
+        </div>
+        <div class="sched-grid" id="schedGrid">
+          <div style="color:var(--text-muted);font-size:13px">請選擇日期後顯示排班表</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ④ 薪資計算 -->
+    <div class="tab-page" id="tab-payroll">
+      <div class="card">
+        <div class="card-title">💴 月薪計算</div>
+        <div class="month-row">
+          <input type="month" id="payMonth">
+          <button class="btn-primary" onclick="calcPayroll()">計算薪資</button>
+          <button class="btn-primary btn-sm" style="background:var(--yellow-dark)" onclick="exportPayroll()">📥 匯出 CSV</button>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>員工</th><th>薪資類型</th><th>時薪/月薪</th>
+                <th>出勤天數</th><th>實際工時</th>
+                <th>遲到次數</th><th>遲到扣薪(元)</th>
+                <th>應付薪資</th>
+              </tr>
+            </thead>
+            <tbody id="payTbody">
+              <tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px">
+                請選擇月份後計算
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">⚙️ 薪資規則設定</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:18px">所有設定儲存於本機，修改後請按「儲存設定」。</div>
+
+        <!-- 基本時薪 + 扣薪 -->
+        <div style="font-size:12px;font-weight:800;color:var(--green);letter-spacing:1px;margin-bottom:10px">▌ 基本時薪</div>
+        <div class="form-grid" style="margin-bottom:20px">
+          <div class="form-group">
+            <label>級距 A 時薪（元/時）</label>
+            <input type="number" id="wageA" placeholder="例：200">
+          </div>
+          <div class="form-group">
+            <label>級距 B 時薪（元/時）</label>
+            <input type="number" id="wageB" placeholder="例：180">
+          </div>
+          <div class="form-group">
+            <label>級距 C 時薪（元/時）</label>
+            <input type="number" id="wageC" placeholder="例：168">
+          </div>
+          <div class="form-group">
+            <label>遲到每次扣薪（元）</label>
+            <input type="number" id="lateDeduct" placeholder="例：100">
+          </div>
+        </div>
+
+        <!-- 加班規則 -->
+        <div style="font-size:12px;font-weight:800;color:var(--green);letter-spacing:1px;margin-bottom:10px">▌ 加班規則</div>
+        <div class="form-grid" style="margin-bottom:20px">
+          <div class="form-group">
+            <label>每日超過幾小時後算加班</label>
+            <input type="number" id="otThreshold" placeholder="例：8" step="0.5">
+          </div>
+          <div class="form-group">
+            <label>加班時薪倍數</label>
+            <input type="number" id="otMultiplier" placeholder="例：1.34" step="0.01">
+          </div>
+        </div>
+
+        <!-- 國定假日 -->
+        <div style="font-size:12px;font-weight:800;color:var(--green);letter-spacing:1px;margin-bottom:10px">▌ 國定假日出勤加成</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">班表格子填 <code>國定 09:00-18:00</code> 格式即觸發加成</div>
+        <div class="form-grid" style="margin-bottom:20px">
+          <div class="form-group">
+            <label>國定假日時薪倍數</label>
+            <input type="number" id="holidayMultiplier" placeholder="例：2" step="0.01">
+          </div>
+        </div>
+
+        <!-- 累積時數升級門檻 -->
+        <div style="font-size:12px;font-weight:800;color:var(--green);letter-spacing:1px;margin-bottom:6px">▌ 當月累積時數升級門檻</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">當月累積工時達到門檻後，該員工當月時薪改用升級後的金額重新計算</div>
+        <div id="tierThresholdList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px"></div>
+        <button class="btn-primary btn-sm" onclick="addTierThresholdRow()" style="margin-bottom:20px">＋ 新增門檻</button>
+
+        <div style="padding-top:16px;border-top:1.5px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+          <div style="font-size:12px;color:var(--text-muted)">💼 月薪制員工的月薪金額在員工管理頁面個別設定</div>
+          <button class="btn-primary" onclick="saveWageSettings()">💾 儲存設定</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ⑤ 員工管理 -->
+    <div class="tab-page" id="tab-employees">
+      <div class="card">
+        <div class="card-title">➕ 新增員工</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>姓名</label>
+            <input type="text" id="newEmpName" placeholder="員工姓名">
+          </div>
+          <div class="form-group">
+            <label>薪資類型</label>
+            <select class="form-sel" id="newEmpWageType" onchange="toggleWageFields()">
+              <option value="hourly">時薪制</option>
+              <option value="monthly">月薪制</option>
+            </select>
+          </div>
+          <div class="form-group" id="fieldTier">
+            <label>時薪級距</label>
+            <select class="form-sel" id="newEmpTier">
+              <option value="A">A 級</option>
+              <option value="B">B 級</option>
+              <option value="C">C 級</option>
+            </select>
+          </div>
+          <div class="form-group" id="fieldMonthly" style="display:none">
+            <label>月薪金額（元）</label>
+            <input type="number" id="newEmpMonthly" placeholder="例：32000">
+          </div>
+          <div class="form-group">
+            <label>到職日</label>
+            <input type="date" id="newEmpDate">
+          </div>
+          <div class="form-group" style="display:flex;align-items:flex-end">
+            <button class="btn-primary" onclick="addEmployee()">新增員工</button>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">👥 現有員工</div>
+        <div class="tbl-wrap">
+          <table>
+            <thead>
+              <tr><th>員工編號</th><th>姓名</th><th>薪資類型</th><th>時薪/月薪</th><th>到職日</th><th>狀態</th><th>操作</th></tr>
+            </thead>
+            <tbody id="empTbody">
+              <tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px">
+                請設定 Apps Script URL 後載入
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ⑥ 系統設定 -->
+    <div class="tab-page" id="tab-settings">
+      <div class="card">
+        <div class="card-title">🔗 Google Apps Script 設定</div>
+        <div class="form-grid">
+          <div class="form-group" style="grid-column:1/-1">
+            <label>Apps Script 部署 URL</label>
+            <input type="text" id="scriptUrl" placeholder="https://script.google.com/macros/s/...">
+          </div>
+          <div class="form-group" style="display:flex;align-items:flex-end">
+            <button class="btn-primary" onclick="saveScriptUrl()">儲存 URL</button>
+          </div>
+          <div class="form-group" style="display:flex;align-items:flex-end">
+            <button class="btn-primary btn-sm" style="background:var(--text-muted)" onclick="testConnection()">測試連線</button>
+          </div>
+        </div>
+        <div style="margin-top:16px;padding:16px;background:var(--bg2);border-radius:12px;font-size:13px;line-height:1.8;color:var(--text-muted)">
+          <strong style="color:var(--text)">部署步驟：</strong><br>
+          1. 開啟 Google Sheets → 工具 → Apps Script<br>
+          2. 貼上後台提供的 Code.gs 程式碼<br>
+          3. 部署 → 新部署 → 類型選「網頁應用程式」<br>
+          4. 執行身分：我自己 / 存取：所有人<br>
+          5. 複製部署 URL 貼到上方欄位
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">🏪 店家設定</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>店名</label>
+            <input type="text" id="shopName" value="甘蔗媽媽">
+          </div>
+          <div class="form-group" style="display:flex;align-items:flex-end">
+            <button class="btn-primary" onclick="saveShopSettings()">儲存</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════
+//  設定
+// ══════════════════════════════════════════
+let SCRIPT_URL = localStorage.getItem('gc_scriptUrl') || '';
+let wageSettings = JSON.parse(localStorage.getItem('gc_wages') || '{"A":200,"B":180,"C":168,"lateDeduct":100}');
+let employees = JSON.parse(localStorage.getItem('gc_employees') || '[]');
+
+const PAGE_TITLES = {
+  dashboard:'今日總覽', attendance:'出勤查詢', schedule:'班表管理',
+  payroll:'薪資計算', employees:'員工管理', settings:'系統設定'
+};
+const WEEKDAYS = ['日','一','二','三','四','五','六'];
+
+// ── 頂部日期 ──
+function updateTopDate() {
+  const now = new Date();
+  document.getElementById('topbarDate').textContent =
+    `${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()} 週${WEEKDAYS[now.getDay()]}`;
+}
+updateTopDate();
+
+// ── 切換頁籤 ──
+function switchTab(name) {
+  document.querySelectorAll('.tab-page').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  document.getElementById(`tab-${name}`).classList.add('active');
+  event.currentTarget.classList.add('active');
+  document.getElementById('pageTitle').textContent = PAGE_TITLES[name];
+  if (name === 'dashboard') loadDashboard();
+  if (name === 'attendance') { initAttMonth(); populateEmpFilter(); }
+  if (name === 'schedule') initSchedWeek();
+  if (name === 'payroll') { initPayMonth(); loadWageForm(); }
+  if (name === 'employees') renderEmpTable();
+  if (name === 'settings') loadSettingsForm();
+}
+
+// ── Toast ──
+function toast(msg, color='var(--green)') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.background = color;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+// ── API ──
+async function apiFetch(action, data={}) {
+  if (!SCRIPT_URL) { toast('請先設定 Apps Script URL','var(--red)'); throw new Error('no url'); }
+  const params = new URLSearchParams({ action, ...data });
+  const res = await fetch(`${SCRIPT_URL}?${params}`);
+  return res.json();
+}
+
+// ══════════════════════════════════════════
+//  ① 今日總覽
+// ══════════════════════════════════════════
+async function loadDashboard() {
+  if (!SCRIPT_URL) return;
+  try {
+    const res = await apiFetch('getDashboard');
+    document.getElementById('s-scheduled').textContent = res.scheduled ?? '—';
+    document.getElementById('s-checked-in').textContent = res.checkedIn ?? '—';
+    document.getElementById('s-late').textContent = res.late ?? '—';
+    document.getElementById('s-absent').textContent = res.absent ?? '—';
+    renderDashboardTable(res.rows || []);
+  } catch(e) {}
+}
+function renderDashboardTable(rows) {
+  const tb = document.getElementById('dashboardTbody');
+  if (!rows.length) { tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted)">今日無排班資料</td></tr>'; return; }
+  tb.innerHTML = rows.map(r => {
+    const statusBadge = {
+      ok: '<span class="badge badge-ok">準時</span>',
+      late: '<span class="badge badge-late">遲到</span>',
+      early: '<span class="badge badge-early">早退</span>',
+      absent: '<span class="badge badge-absent">未打卡</span>',
+      off: '<span class="badge badge-off">休假</span>'
+    }[r.status] || '';
+    return `<tr>
+      <td style="font-weight:700">${r.name}</td>
+      <td>${r.shift || '—'}</td>
+      <td>${r.inTime || '—'}</td>
+      <td>${r.outTime || '—'}</td>
+      <td>${r.hours || '—'}</td>
+      <td>${statusBadge}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════
+//  ② 出勤查詢
+// ══════════════════════════════════════════
+function initAttMonth() {
+  const now = new Date();
+  document.getElementById('attMonth').value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+}
+function populateEmpFilter() {
+  const sel = document.getElementById('attEmp');
+  sel.innerHTML = '<option value="">全部員工</option>';
+  employees.forEach(e => {
+    const opt = document.createElement('option');
+    opt.value = e.id; opt.textContent = e.name;
+    sel.appendChild(opt);
+  });
+}
+async function loadAttendance() {
+  const month = document.getElementById('attMonth').value;
+  const empId = document.getElementById('attEmp').value;
+  if (!month) { toast('請選擇月份','var(--red)'); return; }
+  try {
+    const res = await apiFetch('getAttendance', { month, empId });
+    renderAttTable(res.rows || []);
+  } catch(e) {}
+}
+function renderAttTable(rows) {
+  const tb = document.getElementById('attTbody');
+  if (!rows.length) { tb.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted)">無資料</td></tr>'; return; }
+  tb.innerHTML = rows.map(r => {
+    const badge = {
+      ok:'<span class="badge badge-ok">正常</span>',
+      late:`<span class="badge badge-late">遲到</span>`,
+      early:'<span class="badge badge-early">早退</span>',
+      absent:'<span class="badge badge-absent">缺勤</span>',
+      off:'<span class="badge badge-off">休假</span>'
+    }[r.status] || '';
+    return `<tr>
+      <td>${r.date}</td>
+      <td style="font-weight:700">${r.name}</td>
+      <td>${r.shift||'—'}</td>
+      <td>${r.inTime||'—'}</td>
+      <td>${r.outTime||'—'}</td>
+      <td>${r.hours||'—'}</td>
+      <td style="color:var(--red)">${r.lateMin||'—'}</td>
+      <td>${badge}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════
+//  ③ 班表管理
+// ══════════════════════════════════════════
+function initSchedWeek() {
+  const now = new Date();
+  const day = now.getDay(); // 0=日
+  const mon = new Date(now); mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
+  document.getElementById('schedWeekStart').value = toDateStr(mon);
+  renderScheduleGrid();
+}
+function toDateStr(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function renderScheduleGrid() {
+  const startStr = document.getElementById('schedWeekStart').value;
+  if (!startStr) return;
+  const start = new Date(startStr + 'T00:00:00');
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(start); d.setDate(start.getDate() + i);
+    days.push(d);
+  }
+  const today = toDateStr(new Date());
+  const grid = document.getElementById('schedGrid');
+  // Header
+  let html = '<div class="sched-row">';
+  html += '<div class="sched-header"></div>';
+  days.forEach(d => {
+    const ds = toDateStr(d);
+    const isToday = ds === today ? ' sched-today' : '';
+    html += `<div class="sched-header${isToday}">${d.getMonth()+1}/${d.getDate()}<br>週${WEEKDAYS[d.getDay()]}</div>`;
+  });
+  html += '</div>';
+
+  const empList = employees.length ? employees : [{id:'demo1',name:'範例員工'},{id:'demo2',name:'範例員工2'}];
+  empList.forEach(emp => {
+    html += `<div class="sched-row"><div class="sched-emp-name">${emp.name}</div>`;
+    days.forEach(d => {
+      const ds = toDateStr(d);
+      const savedKey = `gc_sched_${emp.id}_${ds}`;
+      const saved = localStorage.getItem(savedKey) || '';
+      html += `<div class="sched-cell"><input type="text" data-emp="${emp.id}" data-date="${ds}" value="${saved}" placeholder="休假"></div>`;
+    });
+    html += '</div>';
+  });
+  grid.innerHTML = html;
+}
+function saveSchedule() {
+  const inputs = document.querySelectorAll('#schedGrid input[data-emp]');
+  inputs.forEach(inp => {
+    localStorage.setItem(`gc_sched_${inp.dataset.emp}_${inp.dataset.date}`, inp.value);
+  });
+  // If SCRIPT_URL is set, also push to Sheets
+  if (SCRIPT_URL) {
+    const schedData = [];
+    inputs.forEach(inp => {
+      if (inp.value) schedData.push({ empId: inp.dataset.emp, date: inp.dataset.date, shift: inp.value });
+    });
+    apiFetch('saveSchedule', { data: JSON.stringify(schedData) }).catch(()=>{});
+  }
+  toast('班表已儲存 ✅');
+}
+
+// ══════════════════════════════════════════
+//  ④ 薪資計算
+// ══════════════════════════════════════════
+function initPayMonth() {
+  const now = new Date();
+  document.getElementById('payMonth').value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+}
+function loadWageForm() {
+  document.getElementById('wageA').value = wageSettings.A || '';
+  document.getElementById('wageB').value = wageSettings.B || '';
+  document.getElementById('wageC').value = wageSettings.C || '';
+  document.getElementById('lateDeduct').value = wageSettings.lateDeduct || '';
+  document.getElementById('otThreshold').value = wageSettings.otThreshold || '';
+  document.getElementById('otMultiplier').value = wageSettings.otMultiplier || '';
+  document.getElementById('holidayMultiplier').value = wageSettings.holidayMultiplier || '';
+  // 時數升級門檻
+  const list = document.getElementById('tierThresholdList');
+  list.innerHTML = '';
+  const thresholds = wageSettings.tierThresholds || [];
+  if (thresholds.length === 0) {
+    addTierThresholdRow();
+  } else {
+    thresholds.forEach(t => addTierThresholdRow(t.hours, t.wage));
+  }
+}
+function addTierThresholdRow(hours='', wage='') {
+  const list = document.getElementById('tierThresholdList');
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;align-items:center;gap:10px;';
+  row.innerHTML = `
+    <span style="font-size:13px;color:var(--text-muted);white-space:nowrap">當月累積超過</span>
+    <input type="number" value="${hours}" placeholder="100" style="width:80px;padding:8px 10px;font-size:13px;font-family:Noto Sans TC,sans-serif;border:1.5px solid var(--border);border-radius:8px;background:var(--bg)">
+    <span style="font-size:13px;color:var(--text-muted);white-space:nowrap">小時後，時薪升至</span>
+    <input type="number" value="${wage}" placeholder="180" style="width:80px;padding:8px 10px;font-size:13px;font-family:Noto Sans TC,sans-serif;border:1.5px solid var(--border);border-radius:8px;background:var(--bg)">
+    <span style="font-size:13px;color:var(--text-muted)">元/時</span>
+    <button onclick="this.parentElement.remove()" style="background:var(--red);color:white;border:none;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer">刪除</button>
+  `;
+  list.appendChild(row);
+}
+function saveWageSettings() {
+  // 讀取時數升級門檻
+  const rows = document.querySelectorAll('#tierThresholdList > div');
+  const tierThresholds = [];
+  rows.forEach(row => {
+    const inputs = row.querySelectorAll('input');
+    const hours = +inputs[0].value;
+    const wage = +inputs[1].value;
+    if (hours > 0 && wage > 0) tierThresholds.push({ hours, wage });
+  });
+  tierThresholds.sort((a,b) => a.hours - b.hours);
+
+  wageSettings = {
+    A: +document.getElementById('wageA').value || 200,
+    B: +document.getElementById('wageB').value || 180,
+    C: +document.getElementById('wageC').value || 168,
+    lateDeduct: +document.getElementById('lateDeduct').value || 100,
+    otThreshold: +document.getElementById('otThreshold').value || 8,
+    otMultiplier: +document.getElementById('otMultiplier').value || 1.34,
+    holidayMultiplier: +document.getElementById('holidayMultiplier').value || 2,
+    tierThresholds
+  };
+  localStorage.setItem('gc_wages', JSON.stringify(wageSettings));
+  toast('薪資設定已儲存 ✅');
+}
+async function calcPayroll() {
+  const month = document.getElementById('payMonth').value;
+  if (!month) { toast('請選擇月份','var(--red)'); return; }
+  try {
+    const res = await apiFetch('getPayroll', { month, wages: JSON.stringify(wageSettings) });
+    renderPayTable(res.rows || []);
+  } catch(e) {
+    // Demo fallback with wage type support
+    renderPayTable(employees.map(emp => {
+      const isMonthly = emp.wageType === 'monthly';
+      return {
+        name: emp.name,
+        wageType: emp.wageType || 'hourly',
+        tier: emp.tier || 'A',
+        monthlyWage: emp.monthlyWage || 0,
+        hourlyWage: wageSettings[emp.tier||'A'],
+        workDays: 0, totalHours: 0, lateCount: 0, lateDeduct: 0, totalPay: 0
+      };
+    }));
+  }
+}
+function renderPayTable(rows) {
+  const tb = document.getElementById('payTbody');
+  if (!rows.length) { tb.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted)">無薪資資料</td></tr>'; return; }
+  const grandTotal = rows.reduce((s,r) => s + (r.totalPay||0), 0);
+  tb.innerHTML = rows.map(r => {
+    const isMonthly = r.wageType === 'monthly';
+    const typeLabel = isMonthly
+      ? '<span class="badge" style="background:#EDE9FE;color:#6D28D9">月薪制</span>'
+      : `<span class="badge badge-ok">時薪 ${r.tier||''} 級</span>`;
+    const wageDisplay = isMonthly ? `$${(r.monthlyWage||0).toLocaleString()}/月` : `$${r.hourlyWage}/時`;
+    const hoursDisplay = isMonthly ? '—' : `${r.totalHours} h`;
+    return `<tr>
+      <td style="font-weight:700">${r.name}</td>
+      <td>${typeLabel}</td>
+      <td>${wageDisplay}</td>
+      <td>${r.workDays}</td>
+      <td>${hoursDisplay}</td>
+      <td>${r.lateCount}</td>
+      <td style="color:var(--red)">-$${r.lateDeduct}</td>
+      <td class="pay-total">$${(r.totalPay||0).toLocaleString()}</td>
+    </tr>`;
+  }).join('') +
+  `<tr style="background:var(--green-pale)">
+    <td colspan="7" style="font-weight:800;text-align:right;padding:12px 14px">本月薪資總計</td>
+    <td class="pay-total" style="font-size:16px">$${grandTotal.toLocaleString()}</td>
+  </tr>`;
+}
+let payExportRows = [];
+function exportPayroll() {
+  const tb = document.getElementById('payTbody');
+  if (!tb.querySelectorAll('tr').length) { toast('請先計算薪資','var(--red)'); return; }
+  const headers = ['員工','薪資級距','時薪','出勤天數','工時','遲到次數','遲到扣薪','應付薪資'];
+  const rows = [...tb.querySelectorAll('tr:not(:last-child)')].map(tr =>
+    [...tr.querySelectorAll('td')].map(td => td.textContent.trim())
+  );
+  const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
+  const blob = new Blob(['\ufeff'+csv], {type:'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url;
+  a.download = `甘蔗媽媽薪資_${document.getElementById('payMonth').value}.csv`;
+  a.click();
+  toast('CSV 匯出成功 📥');
+}
+
+// ══════════════════════════════════════════
+//  ⑤ 員工管理
+// ══════════════════════════════════════════
+function toggleWageFields() {
+  const type = document.getElementById('newEmpWageType').value;
+  document.getElementById('fieldTier').style.display = type === 'hourly' ? '' : 'none';
+  document.getElementById('fieldMonthly').style.display = type === 'monthly' ? '' : 'none';
+}
+function renderEmpTable() {
+  const tb = document.getElementById('empTbody');
+  if (!employees.length) {
+    tb.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted)">尚無員工資料</td></tr>';
+    return;
+  }
+  tb.innerHTML = employees.map((e,i) => {
+    const isMonthly = e.wageType === 'monthly';
+    const typeLabel = isMonthly
+      ? '<span class="badge" style="background:#EDE9FE;color:#6D28D9">月薪制</span>'
+      : `<span class="badge badge-ok">時薪 ${e.tier||'A'} 級</span>`;
+    const wageDisplay = isMonthly
+      ? `$${(+e.monthlyWage||0).toLocaleString()}/月`
+      : `$${wageSettings[e.tier||'A']||'—'}/時`;
+    return `<tr>
+      <td style="font-family:monospace;color:var(--text-muted);font-size:12px">${e.id}</td>
+      <td style="font-weight:700">${e.name}</td>
+      <td>${typeLabel}</td>
+      <td>${wageDisplay}</td>
+      <td>${e.startDate||'—'}</td>
+      <td><span class="badge badge-ok">在職</span></td>
+      <td>
+        <button class="btn-danger" onclick="removeEmployee(${i})">離職</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+function addEmployee() {
+  const name = document.getElementById('newEmpName').value.trim();
+  const wageType = document.getElementById('newEmpWageType').value;
+  const tier = wageType === 'hourly' ? document.getElementById('newEmpTier').value : '';
+  const monthlyWage = wageType === 'monthly' ? +document.getElementById('newEmpMonthly').value || 0 : 0;
+  const startDate = document.getElementById('newEmpDate').value;
+  if (!name) { toast('請輸入員工姓名','var(--red)'); return; }
+  if (wageType === 'monthly' && !monthlyWage) { toast('請輸入月薪金額','var(--red)'); return; }
+  const id = 'E' + Date.now();
+  employees.push({ id, name, wageType, tier, monthlyWage, startDate });
+  localStorage.setItem('gc_employees', JSON.stringify(employees));
+  document.getElementById('newEmpName').value = '';
+  document.getElementById('newEmpMonthly').value = '';
+  renderEmpTable();
+  if (SCRIPT_URL) apiFetch('addEmployee', { id, name, wageType, tier, monthlyWage, startDate }).catch(()=>{});
+  toast(`已新增員工：${name} ✅`);
+}
+function removeEmployee(idx) {
+  if (!confirm(`確定要將「${employees[idx].name}」設為離職？`)) return;
+  employees.splice(idx, 1);
+  localStorage.setItem('gc_employees', JSON.stringify(employees));
+  renderEmpTable();
+  toast('員工已更新');
+}
+
+// ══════════════════════════════════════════
+//  ⑥ 系統設定
+// ══════════════════════════════════════════
+function loadSettingsForm() {
+  document.getElementById('scriptUrl').value = SCRIPT_URL;
+}
+function saveScriptUrl() {
+  SCRIPT_URL = document.getElementById('scriptUrl').value.trim();
+  localStorage.setItem('gc_scriptUrl', SCRIPT_URL);
+  // 同步到打卡頁的方式：打卡頁從 localStorage 讀取
+  localStorage.setItem('gc_scriptUrl_shared', SCRIPT_URL);
+  toast('Apps Script URL 已儲存 ✅');
+}
+async function testConnection() {
+  if (!SCRIPT_URL) { toast('請先輸入並儲存 URL','var(--red)'); return; }
+  try {
+    const res = await apiFetch('ping');
+    if (res.ok) toast('連線成功！✅');
+    else toast('連線有問題，請確認 Apps Script 設定','var(--red)');
+  } catch(e) {
+    toast('無法連線，請確認 URL 是否正確','var(--red)');
+  }
+}
+function saveShopSettings() {
+  localStorage.setItem('gc_shopName', document.getElementById('shopName').value);
+  toast('店家設定已儲存 ✅');
+}
+
+// ── 初始化 ──
+loadDashboard();
+</script>
+</body>
+</html>
