@@ -398,16 +398,8 @@
         <div style="font-size:12px;font-weight:800;color:var(--green);letter-spacing:1px;margin-bottom:10px">▌ 基本時薪</div>
         <div class="form-grid" style="margin-bottom:20px">
           <div class="form-group">
-            <label>級距 A 時薪（元/時）</label>
-            <input type="number" id="wageA" placeholder="例：200">
-          </div>
-          <div class="form-group">
-            <label>級距 B 時薪（元/時）</label>
-            <input type="number" id="wageB" placeholder="例：180">
-          </div>
-          <div class="form-group">
-            <label>級距 C 時薪（元/時）</label>
-            <input type="number" id="wageC" placeholder="例：168">
+            <label>全店預設時薪（元/時）</label>
+            <input type="number" id="wageDefault" placeholder="例：168">
           </div>
           <div class="form-group">
             <label>遲到每次扣薪（元）</label>
@@ -467,13 +459,9 @@
               <option value="monthly">月薪制</option>
             </select>
           </div>
-          <div class="form-group" id="fieldTier">
-            <label>時薪級距</label>
-            <select class="form-sel" id="newEmpTier">
-              <option value="A">A 級</option>
-              <option value="B">B 級</option>
-              <option value="C">C 級</option>
-            </select>
+          <div class="form-group" id="fieldHourly">
+            <label>時薪（元/時）</label>
+            <input type="number" id="newEmpHourlyWage" placeholder="例：168">
           </div>
           <div class="form-group" id="fieldMonthly" style="display:none">
             <label>月薪金額（元）</label>
@@ -796,22 +784,16 @@ function initPayMonth() {
   document.getElementById('payMonth').value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
 }
 function loadWageForm() {
-  document.getElementById('wageA').value = wageSettings.A || '';
-  document.getElementById('wageB').value = wageSettings.B || '';
-  document.getElementById('wageC').value = wageSettings.C || '';
+  document.getElementById('wageDefault').value = wageSettings.wageDefault || '';
   document.getElementById('lateDeduct').value = wageSettings.lateDeduct || '';
   document.getElementById('otThreshold').value = wageSettings.otThreshold || '';
   document.getElementById('otMultiplier').value = wageSettings.otMultiplier || '';
   document.getElementById('holidayMultiplier').value = wageSettings.holidayMultiplier || '';
-  // 時數升級門檻
   const list = document.getElementById('tierThresholdList');
   list.innerHTML = '';
   const thresholds = wageSettings.tierThresholds || [];
-  if (thresholds.length === 0) {
-    addTierThresholdRow();
-  } else {
-    thresholds.forEach(t => addTierThresholdRow(t.hours, t.wage));
-  }
+  if (thresholds.length === 0) addTierThresholdRow();
+  else thresholds.forEach(t => addTierThresholdRow(t.hours, t.wage));
 }
 function addTierThresholdRow(hours='', wage='') {
   const list = document.getElementById('tierThresholdList');
@@ -828,21 +810,16 @@ function addTierThresholdRow(hours='', wage='') {
   list.appendChild(row);
 }
 function saveWageSettings() {
-  // 讀取時數升級門檻
   const rows = document.querySelectorAll('#tierThresholdList > div');
   const tierThresholds = [];
   rows.forEach(row => {
     const inputs = row.querySelectorAll('input');
-    const hours = +inputs[0].value;
-    const wage = +inputs[1].value;
+    const hours = +inputs[0].value, wage = +inputs[1].value;
     if (hours > 0 && wage > 0) tierThresholds.push({ hours, wage });
   });
   tierThresholds.sort((a,b) => a.hours - b.hours);
-
   wageSettings = {
-    A: +document.getElementById('wageA').value || 200,
-    B: +document.getElementById('wageB').value || 180,
-    C: +document.getElementById('wageC').value || 168,
+    wageDefault: +document.getElementById('wageDefault').value || 168,
     lateDeduct: +document.getElementById('lateDeduct').value || 100,
     otThreshold: +document.getElementById('otThreshold').value || 8,
     otMultiplier: +document.getElementById('otMultiplier').value || 1.34,
@@ -933,7 +910,7 @@ let modalEmpIdx = null;
 
 function toggleWageFields() {
   const type = document.getElementById('newEmpWageType').value;
-  document.getElementById('fieldTier').style.display = type === 'hourly' ? '' : 'none';
+  document.getElementById('fieldHourly').style.display = type === 'hourly' ? '' : 'none';
   document.getElementById('fieldMonthly').style.display = type === 'monthly' ? '' : 'none';
 }
 function renderEmpTable() {
@@ -946,10 +923,10 @@ function renderEmpTable() {
     const isMonthly = e.wageType === 'monthly';
     const typeLabel = isMonthly
       ? '<span class="badge" style="background:#EDE9FE;color:#6D28D9">月薪制</span>'
-      : `<span class="badge badge-ok">時薪 ${e.tier||'A'} 級</span>`;
+      : '<span class="badge badge-ok">時薪制</span>';
     const wageDisplay = isMonthly
       ? `$${(+e.monthlyWage||0).toLocaleString()}/月`
-      : `$${wageSettings[e.tier||'A']||'—'}/時`;
+      : `$${e.hourlyWage || wageSettings.wageDefault || '—'}/時`;
     const hasPersonal = e.personalWage && (e.personalWage.wage || (e.personalWage.tierThresholds||[]).length);
     const personalBadge = hasPersonal
       ? '<span class="badge" style="background:#FEF3C7;color:#92400E">個人規則</span>'
@@ -972,18 +949,20 @@ function renderEmpTable() {
 function addEmployee() {
   const name = document.getElementById('newEmpName').value.trim();
   const wageType = document.getElementById('newEmpWageType').value;
-  const tier = wageType === 'hourly' ? document.getElementById('newEmpTier').value : '';
+  const hourlyWage = wageType === 'hourly' ? +document.getElementById('newEmpHourlyWage').value || 0 : 0;
   const monthlyWage = wageType === 'monthly' ? +document.getElementById('newEmpMonthly').value || 0 : 0;
   const startDate = document.getElementById('newEmpDate').value;
   if (!name) { toast('請輸入員工姓名','var(--red)'); return; }
+  if (wageType === 'hourly' && !hourlyWage) { toast('請輸入時薪金額','var(--red)'); return; }
   if (wageType === 'monthly' && !monthlyWage) { toast('請輸入月薪金額','var(--red)'); return; }
   const id = 'E' + Date.now();
-  employees.push({ id, name, wageType, tier, monthlyWage, startDate, personalWage: null });
+  employees.push({ id, name, wageType, hourlyWage, monthlyWage, startDate, personalWage: null });
   localStorage.setItem('gc_employees', JSON.stringify(employees));
   document.getElementById('newEmpName').value = '';
+  document.getElementById('newEmpHourlyWage').value = '';
   document.getElementById('newEmpMonthly').value = '';
   renderEmpTable();
-  if (SCRIPT_URL) apiFetch('addEmployee', { id, name, wageType, tier, monthlyWage, startDate }).catch(()=>{});
+  if (SCRIPT_URL) apiFetch('addEmployee', { id, name, wageType, hourlyWage, monthlyWage, startDate }).catch(()=>{});
   toast(`已新增員工：${name} ✅`);
 }
 function removeEmployee(idx) {
