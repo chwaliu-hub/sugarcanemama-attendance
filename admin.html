@@ -1153,8 +1153,29 @@ function saveShopSettings() {
   toast('店家設定已儲存 ✅');
 }
 
-// ── 初始化 ──
-loadDashboard();
+// ── 初始化：從 Sheets 載入員工資料 ──
+async function initAdminData() {
+  if (!SCRIPT_URL) { loadDashboard(); return; }
+  try {
+    const res = await apiFetch('getInitData');
+    const remoteEmps = res.employees || [];
+    if (remoteEmps.length > 0) {
+      // 合併：以 Sheets 為主，但保留本機的 personalWage 設定
+      const localMap = {};
+      employees.forEach(e => { if (e.personalWage) localMap[e.id] = e.personalWage; });
+      employees = remoteEmps.map(e => ({
+        ...e,
+        personalWage: localMap[e.id] || e.personalWage || null
+      }));
+      localStorage.setItem('gc_employees', JSON.stringify(employees));
+    }
+  } catch(e) {
+    // 連線失敗就用 localStorage 的資料
+  }
+  loadDashboard();
+}
+
+initAdminData();
 </script>
 </body>
 </html>
