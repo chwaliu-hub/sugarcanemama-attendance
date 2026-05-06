@@ -204,6 +204,20 @@
   }
   .btn-out:hover:not(:disabled) { box-shadow: 0 6px 28px rgba(244,196,48,0.5); }
 
+  .btn-break {
+    background: #E0F2FE;
+    color: #0369A1;
+    box-shadow: 0 4px 16px rgba(3,105,161,0.15);
+  }
+  .btn-break:hover:not(:disabled) { box-shadow: 0 6px 24px rgba(3,105,161,0.28); }
+
+  .btn-break-end {
+    background: #0369A1;
+    color: white;
+    box-shadow: 0 4px 16px rgba(3,105,161,0.3);
+  }
+  .btn-break-end:hover:not(:disabled) { box-shadow: 0 6px 24px rgba(3,105,161,0.45); }
+
   /* ── Status ── */
   .status-box {
     margin-top: 16px;
@@ -240,6 +254,8 @@
   }
   .log-dot.in { background: var(--green); }
   .log-dot.out { background: var(--yellow-dark); }
+  .log-dot.break { background: #0369A1; }
+  .log-dot.break_end { background: #7DD3FC; }
   .log-name { font-weight: 700; flex: 1; }
   .log-time { color: var(--text-muted); font-variant-numeric: tabular-nums; }
   .log-badge {
@@ -332,6 +348,12 @@
       <button class="btn btn-out" id="btnOut" onclick="punch('out')" disabled>
         <span class="btn-icon">🟡</span>下班打卡
       </button>
+      <button class="btn btn-break" id="btnBreak" onclick="punch('break')" disabled>
+        <span class="btn-icon">☕</span>休息開始
+      </button>
+      <button class="btn btn-break-end" id="btnBreakEnd" onclick="punch('break_end')" disabled>
+        <span class="btn-icon">🔄</span>休息結束
+      </button>
     </div>
   </div>
 
@@ -412,9 +434,9 @@ function renderEmployees(list) {
 function renderLog(log) {
   const el = document.getElementById('logList');
   if (!log.length) { el.innerHTML = '<div class="empty-log">今日尚無打卡紀錄</div>'; return; }
+  const typeLabel = { in:'上班', out:'下班', break:'休息開始', break_end:'休息結束' };
   el.innerHTML = log.map(r => {
-    const dotClass = r.type === 'in' ? 'in' : 'out';
-    const typeLabel = r.type === 'in' ? '上班' : '下班';
+    const dotClass = r.type;
     let badge = '';
     if (r.status === 'late') badge = '<span class="log-badge badge-late">遲到</span>';
     else if (r.status === 'early') badge = '<span class="log-badge badge-early">早退</span>';
@@ -422,7 +444,7 @@ function renderLog(log) {
     return `<div class="log-item">
       <div class="log-dot ${dotClass}"></div>
       <span class="log-name">${r.name}</span>
-      <span class="log-time">${r.time} ${typeLabel}</span>
+      <span class="log-time">${r.time} ${typeLabel[r.type]||r.type}</span>
       ${badge}
     </div>`;
   }).join('');
@@ -433,30 +455,34 @@ function onEmpChange() {
   const empId = document.getElementById('empSelect').value;
   const btnIn = document.getElementById('btnIn');
   const btnOut = document.getElementById('btnOut');
+  const btnBreak = document.getElementById('btnBreak');
+  const btnBreakEnd = document.getElementById('btnBreakEnd');
   const shiftEl = document.getElementById('shiftInfo');
   clearStatus();
 
   if (!empId) {
-    btnIn.disabled = btnOut.disabled = true;
+    btnIn.disabled = btnOut.disabled = btnBreak.disabled = btnBreakEnd.disabled = true;
     shiftEl.textContent = '⏳ 請選擇員工查看班表資訊';
     return;
   }
 
-  // 班表資訊
   const shift = todayShifts[empId];
-  if (shift) {
-    shiftEl.textContent = `📋 今日班表：${shift.start} ～ ${shift.end}`;
-  } else {
-    shiftEl.textContent = '📭 今日無排班（休假）';
-  }
+  shiftEl.textContent = shift
+    ? `📋 今日班表：${shift.start} ～ ${shift.end}`
+    : '📭 今日無排班（休假）';
 
-  // 判斷已打卡狀態
+  // 判斷打卡狀態
   const myLog = todayLog.filter(r => r.empId === empId);
-  const hasIn = myLog.some(r => r.type === 'in');
-  const hasOut = myLog.some(r => r.type === 'out');
+  const hasIn       = myLog.some(r => r.type === 'in');
+  const hasOut      = myLog.some(r => r.type === 'out');
+  const hasBreak    = myLog.some(r => r.type === 'break');
+  const hasBreakEnd = myLog.some(r => r.type === 'break_end');
+  const onBreak     = hasBreak && !hasBreakEnd;
 
-  btnIn.disabled = hasIn;
-  btnOut.disabled = !hasIn || hasOut;
+  btnIn.disabled      = hasIn;
+  btnBreak.disabled   = !hasIn || hasOut || hasBreak;
+  btnBreakEnd.disabled= !onBreak;
+  btnOut.disabled     = !hasIn || hasOut || onBreak;
 }
 
 // ── 打卡 ──
@@ -473,15 +499,14 @@ async function punch(type) {
   clearStatus();
 
   if (!APPS_SCRIPT_URL) {
-    // Demo mode
     setTimeout(() => {
       setLoading(false);
-      const r = {empId, name: empName, type, time: timeStr, status: type==='in' ? 'ok' : ''};
+      const r = { empId, name: empName, type, time: timeStr, status: type==='in' ? 'ok' : '' };
       todayLog.push(r);
       renderLog(todayLog);
       onEmpChange();
-      if (type === 'in') showStatus('success', `✅ ${empName} 上班打卡成功！${timeStr}`);
-      else showStatus('success', `✅ ${empName} 下班打卡成功！${timeStr}`);
+      const msgs = { in:`✅ ${empName} 上班打卡成功！${timeStr}`, out:`✅ ${empName} 下班打卡成功！${timeStr}`, break:`☕ ${empName} 休息開始 ${timeStr}`, break_end:`🔄 ${empName} 休息結束 ${timeStr}` };
+      showStatus('success', msgs[type] || '打卡成功');
     }, 800);
     return;
   }
@@ -489,24 +514,20 @@ async function punch(type) {
   try {
     const res = await apiFetch('punch', { empId, type, timestamp: now.toISOString() });
     setLoading(false);
-
     if (res.success) {
       todayLog = res.todayLog || todayLog;
       renderLog(todayLog);
       onEmpChange();
-
       if (type === 'in') {
-        if (res.status === 'late') {
-          showStatus('late', `⚠️ ${empName} 上班打卡 ${timeStr}（遲到 ${res.lateMinutes} 分鐘）`);
-        } else {
-          showStatus('success', `✅ ${empName} 上班打卡成功！${timeStr}`);
-        }
-      } else {
-        if (res.status === 'early') {
-          showStatus('late', `⚠️ ${empName} 下班打卡 ${timeStr}（早退 ${res.earlyMinutes} 分鐘）`);
-        } else {
-          showStatus('success', `✅ ${empName} 下班打卡成功！${timeStr}`);
-        }
+        if (res.status === 'late') showStatus('late', `⚠️ ${empName} 上班打卡 ${timeStr}（遲到 ${res.lateMinutes} 分鐘）`);
+        else showStatus('success', `✅ ${empName} 上班打卡成功！${timeStr}`);
+      } else if (type === 'out') {
+        if (res.status === 'early') showStatus('late', `⚠️ ${empName} 下班打卡 ${timeStr}（早退 ${res.earlyMinutes} 分鐘）`);
+        else showStatus('success', `✅ ${empName} 下班打卡成功！${timeStr}`);
+      } else if (type === 'break') {
+        showStatus('success', `☕ ${empName} 休息開始 ${timeStr}`);
+      } else if (type === 'break_end') {
+        showStatus('success', `🔄 ${empName} 休息結束 ${timeStr}（休息 ${res.breakMinutes} 分鐘）`);
       }
     } else {
       showStatus('error', `❌ ${res.message || '打卡失敗，請再試一次'}`);
