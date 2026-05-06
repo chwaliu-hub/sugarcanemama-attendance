@@ -986,6 +986,7 @@ function renderEmpTable() {
       <td style="display:flex;gap:6px;flex-wrap:wrap">
         <button class="btn-primary btn-sm" onclick="openEditModal(${i})" style="background:#6B7280;white-space:nowrap">✏️ 編輯</button>
         ${!isMonthly ? `<button class="btn-primary btn-sm" onclick="openWageModal(${i})" style="white-space:nowrap">⚙️ 薪資規則</button>` : ''}
+        <button class="btn-primary btn-sm" onclick="resetPin('${e.id}','${e.name}')" style="background:#92400E;white-space:nowrap">🔑 重設PIN</button>
         <button class="btn-danger" onclick="removeEmployee(${i})">離職</button>
       </td>
     </tr>`;
@@ -1055,6 +1056,11 @@ function removeEmployee(idx) {
   localStorage.setItem('gc_employees', JSON.stringify(employees));
   renderEmpTable();
   toast('員工已更新');
+}
+function resetPin(empId, empName) {
+  if (!confirm(`確定要重設「${empName}」的 PIN 碼？\n重設後員工下次打卡時需重新設定。`)) return;
+  localStorage.removeItem(`gc_pin_${empId}`);
+  toast(`已重設 ${empName} 的 PIN 碼 🔑`);
 }
 
 // ── 個人薪資規則 Modal ──

@@ -305,6 +305,40 @@
     text-align: center;
   }
   .footer a { color: var(--green); text-decoration: none; font-weight: 700; }
+
+  /* ── PIN Pad ── */
+  .pin-section { margin-top: 20px; }
+  .pin-dots {
+    display: flex; justify-content: center; gap: 14px;
+    margin: 14px 0 18px;
+  }
+  .pin-dot {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    background: var(--bg);
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .pin-dot.filled { background: var(--green); border-color: var(--green); }
+  .pin-dot.error  { background: var(--red);   border-color: var(--red);   }
+  .pin-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+  .pin-btn {
+    padding: 18px 0;
+    font-size: 22px; font-weight: 700;
+    font-family: 'Noto Sans TC', sans-serif;
+    background: var(--bg2);
+    border: 1.5px solid var(--border);
+    border-radius: 14px;
+    cursor: pointer;
+    transition: background 0.1s, transform 0.08s;
+  }
+  .pin-btn:active { background: var(--green-pale); transform: scale(0.95); }
+  .pin-btn.del { font-size: 18px; background: var(--red-pale); color: var(--red); border-color: var(--red-pale); }
+  .pin-hint { font-size: 13px; color: var(--text-muted); text-align: center; margin-bottom: 10px; font-weight: 500; }
 </style>
 </head>
 <body>
@@ -337,6 +371,31 @@
       <option value="">── 請選擇姓名 ──</option>
     </select>
     <span class="select-arrow">▾</span>
+  </div>
+
+  <!-- PIN 輸入區 -->
+  <div class="pin-section" id="pinSection" style="display:none">
+    <div class="pin-hint" id="pinHint">請輸入您的 4 位數 PIN 碼</div>
+    <div class="pin-dots">
+      <div class="pin-dot" id="pd0"></div>
+      <div class="pin-dot" id="pd1"></div>
+      <div class="pin-dot" id="pd2"></div>
+      <div class="pin-dot" id="pd3"></div>
+    </div>
+    <div class="pin-grid">
+      <button class="pin-btn" onclick="pinInput('1')">1</button>
+      <button class="pin-btn" onclick="pinInput('2')">2</button>
+      <button class="pin-btn" onclick="pinInput('3')">3</button>
+      <button class="pin-btn" onclick="pinInput('4')">4</button>
+      <button class="pin-btn" onclick="pinInput('5')">5</button>
+      <button class="pin-btn" onclick="pinInput('6')">6</button>
+      <button class="pin-btn" onclick="pinInput('7')">7</button>
+      <button class="pin-btn" onclick="pinInput('8')">8</button>
+      <button class="pin-btn" onclick="pinInput('9')">9</button>
+      <button class="pin-btn" onclick="pinInput('')" style="visibility:hidden"></button>
+      <button class="pin-btn" onclick="pinInput('0')">0</button>
+      <button class="pin-btn del" onclick="pinDelete()">⌫</button>
+    </div>
   </div>
 
   <div style="margin-top:20px;">
@@ -397,9 +456,13 @@ setInterval(updateClock, 1000);
 updateClock();
 
 // ── 資料快取 ──
-let employees = [];   // [{id, name, wage_tier}]
-let todayShifts = {}; // {empId: {start:'09:00', end:'18:00'}} or null
-let todayLog = [];    // [{empId, name, type:'in'|'out', time, status}]
+let employees = [];
+let todayShifts = {};
+let todayLog = [];
+let pinVerified = false; // 目前是否已通過 PIN 驗證
+let pinBuffer = '';      // 目前輸入的 PIN
+let pinMode = 'verify';  // 'verify' | 'set_new' | 'confirm_new'
+let pinNewTemp = '';     // 設定新 PIN 時暫存第一次輸入
 
 // ── 初始化 ──
 async function init() {
@@ -450,22 +513,104 @@ function renderLog(log) {
   }).join('');
 }
 
+// ══════════════════════════════════════════
+//  PIN 邏輯
+// ══════════════════════════════════════════
+function getPinKey(empId) { return `gc_pin_${empId}`; }
+function getStoredPin(empId) { return localStorage.getItem(getPinKey(empId)); }
+function savePin(empId, pin) { localStorage.setItem(getPinKey(empId), pin); }
+
+function showPinPad(hint) {
+  pinBuffer = '';
+  document.getElementById('pinSection').style.display = '';
+  document.getElementById('pinHint').textContent = hint;
+  updatePinDots();
+}
+function hidePinPad() {
+  document.getElementById('pinSection').style.display = 'none';
+  pinBuffer = '';
+}
+function updatePinDots(state='normal') {
+  for (let i = 0; i < 4; i++) {
+    const d = document.getElementById(`pd${i}`);
+    d.className = 'pin-dot';
+    if (state === 'error') d.classList.add('error');
+    else if (i < pinBuffer.length) d.classList.add('filled');
+  }
+}
+function pinInput(num) {
+  if (pinBuffer.length >= 4) return;
+  pinBuffer += num;
+  updatePinDots();
+  if (pinBuffer.length === 4) {
+    setTimeout(() => handlePinComplete(), 150);
+  }
+}
+function pinDelete() {
+  if (pinBuffer.length > 0) {
+    pinBuffer = pinBuffer.slice(0, -1);
+    updatePinDots();
+  }
+}
+function pinError(msg) {
+  updatePinDots('error');
+  document.getElementById('pinHint').textContent = msg;
+  document.getElementById('pinHint').style.color = 'var(--red)';
+  setTimeout(() => {
+    pinBuffer = '';
+    updatePinDots();
+    document.getElementById('pinHint').style.color = '';
+  }, 900);
+}
+
+function handlePinComplete() {
+  const empId = document.getElementById('empSelect').value;
+  if (pinMode === 'set_new') {
+    pinNewTemp = pinBuffer;
+    pinBuffer = '';
+    pinMode = 'confirm_new';
+    document.getElementById('pinHint').textContent = '再輸入一次確認 PIN 碼';
+    updatePinDots();
+  } else if (pinMode === 'confirm_new') {
+    if (pinBuffer === pinNewTemp) {
+      savePin(empId, pinBuffer);
+      pinVerified = true;
+      hidePinPad();
+      updatePunchButtons(empId);
+      showStatus('success', '✅ PIN 碼設定完成！現在可以打卡');
+    } else {
+      pinError('兩次輸入不一致，請重新設定');
+      pinMode = 'set_new';
+      pinNewTemp = '';
+    }
+  } else {
+    // verify
+    const stored = getStoredPin(empId);
+    if (pinBuffer === stored) {
+      pinVerified = true;
+      hidePinPad();
+      updatePunchButtons(empId);
+    } else {
+      pinError('PIN 碼錯誤，請再試一次');
+    }
+  }
+}
+
 // ── 選員工 ──
 function onEmpChange() {
   const empId = document.getElementById('empSelect').value;
-  const btnIn = document.getElementById('btnIn');
-  const btnOut = document.getElementById('btnOut');
-  const btnBreak = document.getElementById('btnBreak');
-  const btnBreakEnd = document.getElementById('btnBreakEnd');
   const shiftEl = document.getElementById('shiftInfo');
   clearStatus();
+  pinVerified = false;
+  hidePinPad();
+  disableAllBtns();
 
   if (!empId) {
-    btnIn.disabled = btnOut.disabled = btnBreak.disabled = btnBreakEnd.disabled = true;
     shiftEl.textContent = '⏳ 請選擇員工查看班表資訊';
     return;
   }
 
+  // 班表資訊
   const shift = todayShifts[empId];
   if (shift) {
     const display = shift.raw || `${shift.start}～${shift.end}`;
@@ -474,7 +619,25 @@ function onEmpChange() {
     shiftEl.textContent = '📭 今日無排班（休假）';
   }
 
-  // 判斷打卡狀態
+  // 判斷是否有 PIN
+  const stored = getStoredPin(empId);
+  if (!stored) {
+    pinMode = 'set_new';
+    pinNewTemp = '';
+    showPinPad('首次使用，請設定 4 位數 PIN 碼');
+  } else {
+    pinMode = 'verify';
+    showPinPad('請輸入您的 PIN 碼');
+  }
+}
+
+function disableAllBtns() {
+  ['btnIn','btnOut','btnBreak','btnBreakEnd'].forEach(id => {
+    document.getElementById(id).disabled = true;
+  });
+}
+
+function updatePunchButtons(empId) {
   const myLog = todayLog.filter(r => r.empId === empId);
   const hasIn       = myLog.some(r => r.type === 'in');
   const hasOut      = myLog.some(r => r.type === 'out');
@@ -482,16 +645,17 @@ function onEmpChange() {
   const hasBreakEnd = myLog.some(r => r.type === 'break_end');
   const onBreak     = hasBreak && !hasBreakEnd;
 
-  btnIn.disabled      = hasIn;
-  btnBreak.disabled   = !hasIn || hasOut || hasBreak;
-  btnBreakEnd.disabled= !onBreak;
-  btnOut.disabled     = !hasIn || hasOut || onBreak;
+  document.getElementById('btnIn').disabled       = hasIn;
+  document.getElementById('btnBreak').disabled    = !hasIn || hasOut || hasBreak;
+  document.getElementById('btnBreakEnd').disabled = !onBreak;
+  document.getElementById('btnOut').disabled      = !hasIn || hasOut || onBreak;
 }
 
 // ── 打卡 ──
 async function punch(type) {
   const empId = document.getElementById('empSelect').value;
   if (!empId) { showStatus('error','⚠️ 請先選擇員工'); return; }
+  if (!pinVerified) { showStatus('error','⚠️ 請先通過 PIN 驗證'); return; }
 
   const emp = employees.find(e => e.id === empId);
   const empName = emp ? emp.name : empId;
@@ -507,7 +671,7 @@ async function punch(type) {
       const r = { empId, name: empName, type, time: timeStr, status: type==='in' ? 'ok' : '' };
       todayLog.push(r);
       renderLog(todayLog);
-      onEmpChange();
+      updatePunchButtons(empId);
       const msgs = { in:`✅ ${empName} 上班打卡成功！${timeStr}`, out:`✅ ${empName} 下班打卡成功！${timeStr}`, break:`☕ ${empName} 休息開始 ${timeStr}`, break_end:`🔄 ${empName} 休息結束 ${timeStr}` };
       showStatus('success', msgs[type] || '打卡成功');
     }, 800);
@@ -520,7 +684,7 @@ async function punch(type) {
     if (res.success) {
       todayLog = res.todayLog || todayLog;
       renderLog(todayLog);
-      onEmpChange();
+      updatePunchButtons(empId);
       if (type === 'in') {
         if (res.status === 'late') showStatus('late', `⚠️ ${empName} 上班打卡 ${timeStr}（遲到 ${res.lateMinutes} 分鐘）`);
         else showStatus('success', `✅ ${empName} 上班打卡成功！${timeStr}`);
