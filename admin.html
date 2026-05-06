@@ -493,14 +493,50 @@
         <div class="tbl-wrap">
           <table>
             <thead>
-              <tr><th>員工編號</th><th>姓名</th><th>薪資類型</th><th>時薪/月薪</th><th>到職日</th><th>狀態</th><th>操作</th></tr>
+              <tr><th>員工編號</th><th>姓名</th><th>薪資類型</th><th>時薪/月薪</th><th>個人規則</th><th>到職日</th><th>狀態</th><th>操作</th></tr>
             </thead>
             <tbody id="empTbody">
-              <tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px">
+              <tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px">
                 請設定 Apps Script URL 後載入
               </td></tr>
             </tbody>
           </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- 個人薪資規則 Modal -->
+    <div id="wageModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;align-items:center;justify-content:center;">
+      <div style="background:white;border-radius:20px;padding:28px;width:90%;max-width:520px;max-height:80vh;overflow-y:auto;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+          <div style="font-size:16px;font-weight:900;color:var(--green)" id="modalEmpName">員工姓名</div>
+          <button onclick="closeWageModal()" style="background:var(--bg2);border:none;border-radius:8px;padding:6px 12px;cursor:pointer;font-size:13px">✕ 關閉</button>
+        </div>
+
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px;padding:10px 12px;background:var(--bg2);border-radius:10px">
+          若有填寫個人規則，計算薪資時以個人設定為準；未填的項目沿用全店預設。
+        </div>
+
+        <div style="font-size:12px;font-weight:800;color:var(--green);letter-spacing:1px;margin-bottom:10px">▌ 個人時薪</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+          <div class="form-group">
+            <label>時薪（元/時）</label>
+            <input type="number" id="modalWage" placeholder="留空＝沿用全店預設">
+          </div>
+          <div class="form-group">
+            <label>加班倍數</label>
+            <input type="number" id="modalOtMultiplier" placeholder="留空＝沿用全店預設" step="0.01">
+          </div>
+        </div>
+
+        <div style="font-size:12px;font-weight:800;color:var(--green);letter-spacing:1px;margin-bottom:6px">▌ 個人時數升級門檻</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">留空＝沿用全店預設</div>
+        <div id="modalThresholdList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px"></div>
+        <button class="btn-primary btn-sm" onclick="addModalThresholdRow()" style="margin-bottom:20px">＋ 新增門檻</button>
+
+        <div style="display:flex;justify-content:flex-end;gap:10px;padding-top:16px;border-top:1.5px solid var(--border)">
+          <button class="btn-primary btn-sm" style="background:var(--red)" onclick="clearPersonalWage()">清除個人規則</button>
+          <button class="btn-primary" onclick="savePersonalWage()">💾 儲存個人規則</button>
         </div>
       </div>
     </div>
@@ -819,20 +855,29 @@ function saveWageSettings() {
 async function calcPayroll() {
   const month = document.getElementById('payMonth').value;
   if (!month) { toast('請選擇月份','var(--red)'); return; }
+  // 把個人規則一起傳給後端
+  const empsWithPersonal = employees.map(e => ({
+    id: e.id, name: e.name, wageType: e.wageType, tier: e.tier,
+    monthlyWage: e.monthlyWage, personalWage: e.personalWage || null
+  }));
   try {
-    const res = await apiFetch('getPayroll', { month, wages: JSON.stringify(wageSettings) });
+    const res = await apiFetch('getPayroll', {
+      month,
+      wages: JSON.stringify(wageSettings),
+      employees: JSON.stringify(empsWithPersonal)
+    });
     renderPayTable(res.rows || []);
   } catch(e) {
-    // Demo fallback with wage type support
     renderPayTable(employees.map(emp => {
       const isMonthly = emp.wageType === 'monthly';
+      const pw = emp.personalWage;
+      const effectiveWage = pw?.wage || wageSettings[emp.tier||'A'] || 168;
       return {
-        name: emp.name,
-        wageType: emp.wageType || 'hourly',
-        tier: emp.tier || 'A',
-        monthlyWage: emp.monthlyWage || 0,
-        hourlyWage: wageSettings[emp.tier||'A'],
-        workDays: 0, totalHours: 0, lateCount: 0, lateDeduct: 0, totalPay: 0
+        name: emp.name, wageType: emp.wageType||'hourly',
+        tier: emp.tier || 'A', monthlyWage: emp.monthlyWage||0,
+        hourlyWage: effectiveWage,
+        workDays: 0, totalHours: 0, lateCount: 0, lateDeduct: 0, totalPay: 0,
+        hasPersonalRule: !!(pw?.wage || (pw?.tierThresholds||[]).length)
       };
     }));
   }
@@ -884,6 +929,8 @@ function exportPayroll() {
 // ══════════════════════════════════════════
 //  ⑤ 員工管理
 // ══════════════════════════════════════════
+let modalEmpIdx = null;
+
 function toggleWageFields() {
   const type = document.getElementById('newEmpWageType').value;
   document.getElementById('fieldTier').style.display = type === 'hourly' ? '' : 'none';
@@ -892,7 +939,7 @@ function toggleWageFields() {
 function renderEmpTable() {
   const tb = document.getElementById('empTbody');
   if (!employees.length) {
-    tb.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted)">尚無員工資料</td></tr>';
+    tb.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted)">尚無員工資料</td></tr>';
     return;
   }
   tb.innerHTML = employees.map((e,i) => {
@@ -903,14 +950,20 @@ function renderEmpTable() {
     const wageDisplay = isMonthly
       ? `$${(+e.monthlyWage||0).toLocaleString()}/月`
       : `$${wageSettings[e.tier||'A']||'—'}/時`;
+    const hasPersonal = e.personalWage && (e.personalWage.wage || (e.personalWage.tierThresholds||[]).length);
+    const personalBadge = hasPersonal
+      ? '<span class="badge" style="background:#FEF3C7;color:#92400E">個人規則</span>'
+      : '<span style="font-size:12px;color:var(--text-muted)">全店預設</span>';
     return `<tr>
       <td style="font-family:monospace;color:var(--text-muted);font-size:12px">${e.id}</td>
       <td style="font-weight:700">${e.name}</td>
       <td>${typeLabel}</td>
       <td>${wageDisplay}</td>
+      <td>${personalBadge}</td>
       <td>${e.startDate||'—'}</td>
       <td><span class="badge badge-ok">在職</span></td>
-      <td>
+      <td style="display:flex;gap:6px">
+        ${!isMonthly ? `<button class="btn-primary btn-sm" onclick="openWageModal(${i})" style="white-space:nowrap">⚙️ 薪資規則</button>` : ''}
         <button class="btn-danger" onclick="removeEmployee(${i})">離職</button>
       </td>
     </tr>`;
@@ -925,7 +978,7 @@ function addEmployee() {
   if (!name) { toast('請輸入員工姓名','var(--red)'); return; }
   if (wageType === 'monthly' && !monthlyWage) { toast('請輸入月薪金額','var(--red)'); return; }
   const id = 'E' + Date.now();
-  employees.push({ id, name, wageType, tier, monthlyWage, startDate });
+  employees.push({ id, name, wageType, tier, monthlyWage, startDate, personalWage: null });
   localStorage.setItem('gc_employees', JSON.stringify(employees));
   document.getElementById('newEmpName').value = '';
   document.getElementById('newEmpMonthly').value = '';
@@ -939,6 +992,68 @@ function removeEmployee(idx) {
   localStorage.setItem('gc_employees', JSON.stringify(employees));
   renderEmpTable();
   toast('員工已更新');
+}
+
+// ── 個人薪資規則 Modal ──
+function openWageModal(idx) {
+  modalEmpIdx = idx;
+  const emp = employees[idx];
+  document.getElementById('modalEmpName').textContent = `⚙️ ${emp.name} 的個人薪資規則`;
+  const pw = emp.personalWage || {};
+  document.getElementById('modalWage').value = pw.wage || '';
+  document.getElementById('modalOtMultiplier').value = pw.otMultiplier || '';
+  // 門檻列表
+  const list = document.getElementById('modalThresholdList');
+  list.innerHTML = '';
+  const thresholds = pw.tierThresholds || [];
+  if (thresholds.length === 0) addModalThresholdRow();
+  else thresholds.forEach(t => addModalThresholdRow(t.hours, t.wage));
+  document.getElementById('wageModal').style.display = 'flex';
+}
+function closeWageModal() {
+  document.getElementById('wageModal').style.display = 'none';
+  modalEmpIdx = null;
+}
+function addModalThresholdRow(hours='', wage='') {
+  const list = document.getElementById('modalThresholdList');
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap';
+  row.innerHTML = `
+    <span style="font-size:13px;color:var(--text-muted);white-space:nowrap">累積超過</span>
+    <input type="number" value="${hours}" placeholder="100" style="width:72px;padding:7px 9px;font-size:13px;font-family:Noto Sans TC,sans-serif;border:1.5px solid var(--border);border-radius:8px;background:var(--bg)">
+    <span style="font-size:13px;color:var(--text-muted);white-space:nowrap">小時後，時薪升至</span>
+    <input type="number" value="${wage}" placeholder="180" style="width:72px;padding:7px 9px;font-size:13px;font-family:Noto Sans TC,sans-serif;border:1.5px solid var(--border);border-radius:8px;background:var(--bg)">
+    <span style="font-size:13px;color:var(--text-muted)">元/時</span>
+    <button onclick="this.parentElement.remove()" style="background:var(--red);color:white;border:none;border-radius:6px;padding:4px 9px;font-size:12px;cursor:pointer">刪除</button>
+  `;
+  list.appendChild(row);
+}
+function savePersonalWage() {
+  if (modalEmpIdx === null) return;
+  const wage = +document.getElementById('modalWage').value || null;
+  const otMultiplier = +document.getElementById('modalOtMultiplier').value || null;
+  const rows = document.querySelectorAll('#modalThresholdList > div');
+  const tierThresholds = [];
+  rows.forEach(row => {
+    const inputs = row.querySelectorAll('input');
+    const h = +inputs[0].value, w = +inputs[1].value;
+    if (h > 0 && w > 0) tierThresholds.push({ hours: h, wage: w });
+  });
+  tierThresholds.sort((a,b) => a.hours - b.hours);
+  employees[modalEmpIdx].personalWage = { wage, otMultiplier, tierThresholds };
+  localStorage.setItem('gc_employees', JSON.stringify(employees));
+  renderEmpTable();
+  closeWageModal();
+  toast(`${employees[modalEmpIdx]?.name || ''} 個人規則已儲存 ✅`);
+}
+function clearPersonalWage() {
+  if (modalEmpIdx === null) return;
+  if (!confirm('確定要清除個人規則，改用全店預設？')) return;
+  employees[modalEmpIdx].personalWage = null;
+  localStorage.setItem('gc_employees', JSON.stringify(employees));
+  renderEmpTable();
+  closeWageModal();
+  toast('已清除個人規則，改用全店預設');
 }
 
 // ══════════════════════════════════════════
