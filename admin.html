@@ -574,6 +574,44 @@
 
 <div class="toast" id="toast"></div>
 
+<!-- 編輯員工 Modal -->
+<div id="editEmpModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;align-items:center;justify-content:center;">
+  <div style="background:white;border-radius:20px;padding:28px;width:90%;max-width:460px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <div style="font-size:16px;font-weight:900;color:var(--green)">✏️ 編輯員工資料</div>
+      <button onclick="closeEditModal()" style="background:var(--bg2);border:none;border-radius:8px;padding:6px 12px;cursor:pointer;font-size:13px">✕ 關閉</button>
+    </div>
+    <div class="form-grid">
+      <div class="form-group" style="grid-column:1/-1">
+        <label>姓名</label>
+        <input type="text" id="editEmpName" placeholder="員工姓名">
+      </div>
+      <div class="form-group">
+        <label>薪資類型</label>
+        <select class="form-sel" id="editEmpWageType" onchange="toggleEditWageFields()">
+          <option value="hourly">時薪制</option>
+          <option value="monthly">月薪制</option>
+        </select>
+      </div>
+      <div class="form-group" id="editFieldHourly">
+        <label>時薪（元/時）</label>
+        <input type="number" id="editEmpHourlyWage" placeholder="例：168">
+      </div>
+      <div class="form-group" id="editFieldMonthly" style="display:none">
+        <label>月薪金額（元）</label>
+        <input type="number" id="editEmpMonthly" placeholder="例：32000">
+      </div>
+      <div class="form-group">
+        <label>到職日</label>
+        <input type="date" id="editEmpDate">
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;padding-top:16px;border-top:1.5px solid var(--border);margin-top:16px">
+      <button class="btn-primary" onclick="saveEditEmployee()">💾 儲存修改</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ══════════════════════════════════════════
 //  設定
@@ -939,12 +977,52 @@ function renderEmpTable() {
       <td>${personalBadge}</td>
       <td>${e.startDate||'—'}</td>
       <td><span class="badge badge-ok">在職</span></td>
-      <td style="display:flex;gap:6px">
+      <td style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn-primary btn-sm" onclick="openEditModal(${i})" style="background:#6B7280;white-space:nowrap">✏️ 編輯</button>
         ${!isMonthly ? `<button class="btn-primary btn-sm" onclick="openWageModal(${i})" style="white-space:nowrap">⚙️ 薪資規則</button>` : ''}
         <button class="btn-danger" onclick="removeEmployee(${i})">離職</button>
       </td>
     </tr>`;
   }).join('');
+}
+
+// ── 編輯員工 Modal ──
+let editEmpIdx = null;
+function openEditModal(idx) {
+  editEmpIdx = idx;
+  const e = employees[idx];
+  document.getElementById('editEmpName').value = e.name;
+  document.getElementById('editEmpWageType').value = e.wageType || 'hourly';
+  document.getElementById('editEmpHourlyWage').value = e.hourlyWage || '';
+  document.getElementById('editEmpMonthly').value = e.monthlyWage || '';
+  document.getElementById('editEmpDate').value = e.startDate || '';
+  toggleEditWageFields();
+  document.getElementById('editEmpModal').style.display = 'flex';
+}
+function closeEditModal() {
+  document.getElementById('editEmpModal').style.display = 'none';
+  editEmpIdx = null;
+}
+function toggleEditWageFields() {
+  const type = document.getElementById('editEmpWageType').value;
+  document.getElementById('editFieldHourly').style.display = type === 'hourly' ? '' : 'none';
+  document.getElementById('editFieldMonthly').style.display = type === 'monthly' ? '' : 'none';
+}
+function saveEditEmployee() {
+  if (editEmpIdx === null) return;
+  const name = document.getElementById('editEmpName').value.trim();
+  const wageType = document.getElementById('editEmpWageType').value;
+  const hourlyWage = wageType === 'hourly' ? +document.getElementById('editEmpHourlyWage').value || 0 : 0;
+  const monthlyWage = wageType === 'monthly' ? +document.getElementById('editEmpMonthly').value || 0 : 0;
+  const startDate = document.getElementById('editEmpDate').value;
+  if (!name) { toast('請輸入員工姓名','var(--red)'); return; }
+  if (wageType === 'hourly' && !hourlyWage) { toast('請輸入時薪金額','var(--red)'); return; }
+  if (wageType === 'monthly' && !monthlyWage) { toast('請輸入月薪金額','var(--red)'); return; }
+  employees[editEmpIdx] = { ...employees[editEmpIdx], name, wageType, hourlyWage, monthlyWage, startDate };
+  localStorage.setItem('gc_employees', JSON.stringify(employees));
+  renderEmpTable();
+  closeEditModal();
+  toast(`已更新員工資料：${name} ✅`);
 }
 function addEmployee() {
   const name = document.getElementById('newEmpName').value.trim();
