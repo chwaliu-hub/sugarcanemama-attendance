@@ -467,9 +467,12 @@ function onEmpChange() {
   }
 
   const shift = todayShifts[empId];
-  shiftEl.textContent = shift
-    ? `📋 今日班表：${shift.start} ～ ${shift.end}`
-    : '📭 今日無排班（休假）';
+  if (shift) {
+    const display = shift.raw || `${shift.start}～${shift.end}`;
+    shiftEl.textContent = `📋 今日班表：${display}`;
+  } else {
+    shiftEl.textContent = '📭 今日無排班（休假）';
+  }
 
   // 判斷打卡狀態
   const myLog = todayLog.filter(r => r.empId === empId);
