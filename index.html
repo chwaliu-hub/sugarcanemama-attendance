@@ -361,6 +361,9 @@
   <div class="clock-time" id="clockTime">00:00:00</div>
   <div class="clock-date" id="clockDate">載入中…</div>
   <div class="clock-shift-info" id="shiftInfo">⏳ 請選擇員工查看班表資訊</div>
+  <div style="text-align:right;margin-top:8px">
+    <button onclick="refreshTodayLog()" style="background:rgba(255,255,255,0.2);color:white;border:none;border-radius:8px;padding:5px 12px;font-size:12px;font-family:Noto Sans TC,sans-serif;cursor:pointer;letter-spacing:0.5px">🔄 重新整理</button>
+  </div>
 </div>
 
 <!-- 選擇員工 + 打卡 -->
@@ -591,6 +594,24 @@ function handlePinComplete() {
     } else {
       pinError('PIN 碼錯誤，請再試一次');
     }
+  }
+}
+
+// ── 重新整理今日紀錄 ──
+async function refreshTodayLog() {
+  if (!APPS_SCRIPT_URL) return;
+  try {
+    const res = await apiFetch('getInitData');
+    todayLog = res.todayLog || [];
+    todayShifts = res.todayShifts || {};
+    renderLog(todayLog);
+    // 如果目前有選員工且已驗證，重新更新按鈕狀態
+    const empId = document.getElementById('empSelect').value;
+    if (empId && pinVerified) updatePunchButtons(empId);
+    showStatus('success','✅ 已更新今日資料');
+    setTimeout(() => clearStatus(), 1500);
+  } catch(e) {
+    showStatus('error','❌ 更新失敗，請重試');
   }
 }
 

@@ -334,12 +334,44 @@
         <div class="tbl-wrap">
           <table>
             <thead>
-              <tr><th>日期</th><th>員工</th><th>班表</th><th>上班</th><th>下班</th><th>實際工時</th><th>遲到(分)</th><th>狀態</th></tr>
+              <tr><th>日期</th><th>員工</th><th>班表</th><th>上班</th><th>下班</th><th>實際工時</th><th>遲到(分)</th><th>狀態</th><th>操作</th></tr>
             </thead>
             <tbody id="attTbody">
-              <tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px">請選擇查詢條件</td></tr>
+              <tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:24px">請選擇查詢條件</td></tr>
             </tbody>
           </table>
+        </div>
+      </div>
+
+      <!-- 補打卡 -->
+      <div class="card">
+        <div class="card-title">✏️ 補打卡／修正紀錄</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px">用於員工忘記打卡時，由管理者手動補登紀錄。</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>日期</label>
+            <input type="date" id="manualDate">
+          </div>
+          <div class="form-group">
+            <label>員工</label>
+            <select class="form-sel" id="manualEmp"></select>
+          </div>
+          <div class="form-group">
+            <label>打卡類型</label>
+            <select class="form-sel" id="manualType">
+              <option value="in">上班</option>
+              <option value="out">下班</option>
+              <option value="break">休息開始</option>
+              <option value="break_end">休息結束</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>時間</label>
+            <input type="time" id="manualTime">
+          </div>
+          <div class="form-group" style="display:flex;align-items:flex-end">
+            <button class="btn-primary" onclick="submitManualPunch()">補打卡</button>
+          </div>
         </div>
       </div>
     </div>
@@ -712,14 +744,20 @@ function renderDashboardTable(rows) {
 function initAttMonth() {
   const now = new Date();
   document.getElementById('attMonth').value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  // 今天日期預設給補打卡
+  document.getElementById('manualDate').value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
 }
 function populateEmpFilter() {
   const sel = document.getElementById('attEmp');
+  const manSel = document.getElementById('manualEmp');
   sel.innerHTML = '<option value="">全部員工</option>';
+  manSel.innerHTML = '<option value="">── 請選擇 ──</option>';
   employees.forEach(e => {
-    const opt = document.createElement('option');
-    opt.value = e.id; opt.textContent = e.name;
-    sel.appendChild(opt);
+    [sel, manSel].forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = e.id; opt.textContent = e.name;
+      s.appendChild(opt);
+    });
   });
 }
 async function loadAttendance() {
@@ -733,7 +771,7 @@ async function loadAttendance() {
 }
 function renderAttTable(rows) {
   const tb = document.getElementById('attTbody');
-  if (!rows.length) { tb.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted)">無資料</td></tr>'; return; }
+  if (!rows.length) { tb.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--text-muted)">無資料</td></tr>'; return; }
   tb.innerHTML = rows.map(r => {
     const badge = {
       ok:'<span class="badge badge-ok">正常</span>',
@@ -751,8 +789,33 @@ function renderAttTable(rows) {
       <td>${r.hours||'—'}</td>
       <td style="color:var(--red)">${r.lateMin||'—'}</td>
       <td>${badge}</td>
+      <td>
+        <button class="btn-danger" onclick="deleteAttRecord('${r.date}','${r.empId}')">刪除</button>
+      </td>
     </tr>`;
   }).join('');
+}
+async function deleteAttRecord(date, empId) {
+  const emp = employees.find(e => e.id === empId);
+  const name = emp ? emp.name : empId;
+  if (!confirm(`確定要刪除「${name}」${date} 的所有打卡紀錄？`)) return;
+  try {
+    const res = await apiFetch('deleteAttRecord', { date, empId });
+    if (res.success) { toast('已刪除打卡紀錄 ✅'); loadAttendance(); }
+    else toast(res.message || '刪除失敗','var(--red)');
+  } catch(e) { toast('連線失敗','var(--red)'); }
+}
+async function submitManualPunch() {
+  const date = document.getElementById('manualDate').value;
+  const empId = document.getElementById('manualEmp').value;
+  const type = document.getElementById('manualType').value;
+  const time = document.getElementById('manualTime').value;
+  if (!date || !empId || !time) { toast('請填寫所有欄位','var(--red)'); return; }
+  try {
+    const res = await apiFetch('manualPunch', { date, empId, type, time });
+    if (res.success) { toast('補打卡成功 ✅'); loadAttendance(); }
+    else toast(res.message || '補打卡失敗','var(--red)');
+  } catch(e) { toast('連線失敗','var(--red)'); }
 }
 
 // ══════════════════════════════════════════
