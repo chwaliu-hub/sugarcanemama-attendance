@@ -706,7 +706,7 @@ async function apiFetch(action, data={}) {
 //  ① 今日總覽
 // ══════════════════════════════════════════
 async function loadDashboard() {
-  if (!SCRIPT_URL) return;
+  if (!SCRIPT_URL) { document.getElementById("s-scheduled").textContent = "—"; return; }
   try {
     const res = await apiFetch('getDashboard');
     document.getElementById('s-scheduled').textContent = res.scheduled ?? '—';
@@ -1218,6 +1218,7 @@ function saveShopSettings() {
 
 // ── 初始化：從 Sheets 載入員工資料 ──
 async function initAdminData() {
+  // URL 已寫死，直接載入
   if (!SCRIPT_URL) { loadDashboard(); return; }
   try {
     const res = await apiFetch('getInitData');
@@ -1238,7 +1239,14 @@ async function initAdminData() {
   loadDashboard();
 }
 
-initAdminData();
+// 確保 DOM 完全載入後再初始化
+window.addEventListener('DOMContentLoaded', function() {
+  initAdminData();
+});
+// fallback
+if (document.readyState === 'complete' || document.readyState === 'interactive') {
+  initAdminData();
+}
 </script>
 </body>
 </html>
