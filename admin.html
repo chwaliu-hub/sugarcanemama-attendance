@@ -939,10 +939,14 @@ function saveWageSettings() {
 async function calcPayroll() {
   const month = document.getElementById('payMonth').value;
   if (!month) { toast('請選擇月份','var(--red)'); return; }
-  // 把個人規則一起傳給後端
+  if (!employees.length) { toast('請先載入員工資料','var(--red)'); return; }
+  // 把個人規則一起傳給後端，確保 hourlyWage 欄位有值
   const empsWithPersonal = employees.map(e => ({
-    id: e.id, name: e.name, wageType: e.wageType, tier: e.tier,
-    monthlyWage: e.monthlyWage, personalWage: e.personalWage || null
+    id: e.id, name: e.name,
+    wageType: e.wageType || 'hourly',
+    hourlyWage: e.hourlyWage || e.wage || 0,
+    monthlyWage: e.monthlyWage || 0,
+    personalWage: e.personalWage || null
   }));
   try {
     const res = await apiFetch('getPayroll', {
@@ -950,20 +954,15 @@ async function calcPayroll() {
       wages: JSON.stringify(wageSettings),
       employees: JSON.stringify(empsWithPersonal)
     });
-    renderPayTable(res.rows || []);
+    if (!res.rows || res.rows.length === 0) {
+      toast('該月份無出勤資料', 'var(--red)');
+      document.getElementById('payTbody').innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted)">該月份無出勤資料</td></tr>';
+      return;
+    }
+    renderPayTable(res.rows);
   } catch(e) {
-    renderPayTable(employees.map(emp => {
-      const isMonthly = emp.wageType === 'monthly';
-      const pw = emp.personalWage;
-      const effectiveWage = pw?.wage || wageSettings[emp.tier||'A'] || 168;
-      return {
-        name: emp.name, wageType: emp.wageType||'hourly',
-        tier: emp.tier || 'A', monthlyWage: emp.monthlyWage||0,
-        hourlyWage: effectiveWage,
-        workDays: 0, totalHours: 0, lateCount: 0, lateDeduct: 0, totalPay: 0,
-        hasPersonalRule: !!(pw?.wage || (pw?.tierThresholds||[]).length)
-      };
-    }));
+    toast('計算失敗，請確認連線', 'var(--red)');
+    console.error(e);
   }
 }
 function renderPayTable(rows) {
