@@ -1159,8 +1159,9 @@ function addModalThresholdRow(hours='', wage='') {
   `;
   list.appendChild(row);
 }
-function savePersonalWage() {
+async function savePersonalWage() {
   if (modalEmpIdx === null) return;
+  const emp = employees[modalEmpIdx];
   const wage = +document.getElementById('modalWage').value || null;
   const otMultiplier = +document.getElementById('modalOtMultiplier').value || null;
   const rows = document.querySelectorAll('#modalThresholdList > div');
@@ -1171,15 +1172,24 @@ function savePersonalWage() {
     if (h > 0 && w > 0) tierThresholds.push({ hours: h, wage: w });
   });
   tierThresholds.sort((a,b) => a.hours - b.hours);
-  employees[modalEmpIdx].personalWage = { wage, otMultiplier, tierThresholds };
+  const personalWage = { wage, otMultiplier, tierThresholds };
+  // 存到 Sheets
+  try {
+    await apiFetch('savePersonalWage', { empId: emp.id, data: JSON.stringify(personalWage) });
+  } catch(e) { toast('儲存失敗，請確認連線','var(--red)'); return; }
+  employees[modalEmpIdx].personalWage = personalWage;
   localStorage.setItem('gc_employees', JSON.stringify(employees));
   renderEmpTable();
   closeWageModal();
-  toast(`${employees[modalEmpIdx]?.name || ''} 個人規則已儲存 ✅`);
+  toast(`${emp.name} 個人規則已儲存 ✅`);
 }
-function clearPersonalWage() {
+async function clearPersonalWage() {
   if (modalEmpIdx === null) return;
   if (!confirm('確定要清除個人規則，改用全店預設？')) return;
+  const emp = employees[modalEmpIdx];
+  try {
+    await apiFetch('savePersonalWage', { empId: emp.id, data: '' });
+  } catch(e) {}
   employees[modalEmpIdx].personalWage = null;
   localStorage.setItem('gc_employees', JSON.stringify(employees));
   renderEmpTable();
@@ -1217,18 +1227,15 @@ function saveShopSettings() {
 
 // ── 初始化：從 Sheets 載入員工資料 ──
 async function initAdminData() {
-  // URL 已寫死，直接載入
   if (!SCRIPT_URL) { loadDashboard(); return; }
   try {
     const res = await apiFetch('getInitData');
     const remoteEmps = res.employees || [];
+    const remoteRules = res.personalWageRules || {};
     if (remoteEmps.length > 0) {
-      // 合併：以 Sheets 為主，但保留本機的 personalWage 設定
-      const localMap = {};
-      employees.forEach(e => { if (e.personalWage) localMap[e.id] = e.personalWage; });
       employees = remoteEmps.map(e => ({
         ...e,
-        personalWage: localMap[e.id] || e.personalWage || null
+        personalWage: remoteRules[e.id] || null
       }));
       localStorage.setItem('gc_employees', JSON.stringify(employees));
     }
