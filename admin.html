@@ -324,8 +324,9 @@
               <option value="">全部員工</option>
             </select>
           </div>
-          <div class="form-group" style="display:flex;align-items:flex-end">
+          <div class="form-group" style="display:flex;align-items:flex-end;gap:10px">
             <button class="btn-primary" onclick="loadAttendance()">查詢</button>
+            <button class="btn-primary btn-sm" style="background:var(--yellow-dark)" onclick="exportAttendance()">📥 匯出 CSV</button>
           </div>
         </div>
       </div>
@@ -760,13 +761,15 @@ function populateEmpFilter() {
     });
   });
 }
+let lastAttRows = [];
 async function loadAttendance() {
   const month = document.getElementById('attMonth').value;
   const empId = document.getElementById('attEmp').value;
   if (!month) { toast('請選擇月份','var(--red)'); return; }
   try {
     const res = await apiFetch('getAttendance', { month, empId });
-    renderAttTable(res.rows || []);
+    lastAttRows = res.rows || [];
+    renderAttTable(lastAttRows);
   } catch(e) {}
 }
 function renderAttTable(rows) {
@@ -794,6 +797,27 @@ function renderAttTable(rows) {
       </td>
     </tr>`;
   }).join('');
+}
+function exportAttendance() {
+  if (!lastAttRows.length) { toast('請先查詢後再匯出','var(--red)'); return; }
+  const month = document.getElementById('attMonth').value;
+  const empSel = document.getElementById('attEmp');
+  const empName = empSel.options[empSel.selectedIndex].text;
+  const headers = ['日期','員工','班表','上班','下班','實際工時','遲到(分)','狀態'];
+  const statusMap = { ok:'正常', late:'遲到', early:'早退', absent:'缺勤', off:'休假', manual:'補打' };
+  const rows = lastAttRows.map(r => [
+    r.date, r.name, r.shift||'', r.inTime||'', r.outTime||'',
+    r.hours||'', r.lateMin||'0', statusMap[r.status]||r.status
+  ]);
+  const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
+  const blob = new Blob(['\ufeff'+csv], {type:'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const suffix = empName && empName !== '全部員工' ? '_' + empName : '';
+  a.download = '出勤紀錄_' + month + suffix + '.csv';
+  a.click();
+  toast('出勤紀錄匯出成功 📥');
 }
 async function deleteAttRecord(date, empId) {
   const emp = employees.find(e => e.id === empId);
