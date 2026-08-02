@@ -383,7 +383,7 @@
         <div class="card-title">📅 週班表編輯</div>
         <div class="month-row">
           <span style="font-size:13px;font-weight:700;color:var(--text-muted)">選擇週起始日</span>
-          <input type="date" id="schedWeekStart" onchange="renderScheduleGrid()">
+          <input type="date" id="schedWeekStart" onchange="loadAndRenderSchedule()">
           <button class="btn-primary btn-sm" onclick="saveSchedule()">💾 儲存班表</button>
         </div>
         <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px">
@@ -845,28 +845,54 @@ async function submitManualPunch() {
 // ══════════════════════════════════════════
 //  ③ 班表管理
 // ══════════════════════════════════════════
+let schedCache = {}; // {empId_date: shiftStr} 從 Sheets 載入的班表快取
+
 function initSchedWeek() {
   const now = new Date();
-  const day = now.getDay(); // 0=日
+  const day = now.getDay();
   const mon = new Date(now); mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
   document.getElementById('schedWeekStart').value = toDateStr(mon);
-  renderScheduleGrid();
+  loadAndRenderSchedule();
 }
 function toDateStr(d) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
-function renderScheduleGrid() {
+async function loadAndRenderSchedule() {
   const startStr = document.getElementById('schedWeekStart').value;
   if (!startStr) return;
+  // 計算這週的日期範圍
   const start = new Date(startStr + 'T00:00:00');
   const days = [];
   for (let i = 0; i < 7; i++) {
     const d = new Date(start); d.setDate(start.getDate() + i);
     days.push(d);
   }
+  const month = startStr.substring(0, 7); // yyyy-MM
+  // 從 Sheets 載入這個月的班表
+  if (SCRIPT_URL) {
+    try {
+      const res = await apiFetch('getSchedule', { month });
+      schedCache = res.scheduleMap || {};
+    } catch(e) {
+      // 連線失敗就用空的
+      schedCache = {};
+    }
+  }
+  renderScheduleGrid(days);
+}
+function renderScheduleGrid(days) {
+  const startStr = document.getElementById('schedWeekStart').value;
+  if (!startStr) return;
+  if (!days) {
+    const start = new Date(startStr + 'T00:00:00');
+    days = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(start); d.setDate(start.getDate() + i);
+      days.push(d);
+    }
+  }
   const today = toDateStr(new Date());
   const grid = document.getElementById('schedGrid');
-  // Header
   let html = '<div class="sched-row">';
   html += '<div class="sched-header"></div>';
   days.forEach(d => {
@@ -881,28 +907,38 @@ function renderScheduleGrid() {
     html += `<div class="sched-row"><div class="sched-emp-name">${emp.name}</div>`;
     days.forEach(d => {
       const ds = toDateStr(d);
-      const savedKey = `gc_sched_${emp.id}_${ds}`;
-      const saved = localStorage.getItem(savedKey) || '';
+      // 優先從 Sheets 快取讀，fallback localStorage
+      const saved = schedCache[`${emp.id}_${ds}`] || localStorage.getItem(`gc_sched_${emp.id}_${ds}`) || '';
       html += `<div class="sched-cell"><input type="text" data-emp="${emp.id}" data-date="${ds}" value="${saved}" placeholder="休假"></div>`;
     });
     html += '</div>';
   });
   grid.innerHTML = html;
 }
-function saveSchedule() {
+async function saveSchedule() {
   const inputs = document.querySelectorAll('#schedGrid input[data-emp]');
+  const schedData = [];
   inputs.forEach(inp => {
-    localStorage.setItem(`gc_sched_${inp.dataset.emp}_${inp.dataset.date}`, inp.value);
+    // 同步更新快取和 localStorage
+    const key = `${inp.dataset.emp}_${inp.dataset.date}`;
+    schedCache[key] = inp.value;
+    if (inp.value) {
+      localStorage.setItem(`gc_sched_${inp.dataset.emp}_${inp.dataset.date}`, inp.value);
+      schedData.push({ empId: inp.dataset.emp, date: inp.dataset.date, shift: inp.value });
+    } else {
+      localStorage.removeItem(`gc_sched_${inp.dataset.emp}_${inp.dataset.date}`);
+    }
   });
-  // If SCRIPT_URL is set, also push to Sheets
   if (SCRIPT_URL) {
-    const schedData = [];
-    inputs.forEach(inp => {
-      if (inp.value) schedData.push({ empId: inp.dataset.emp, date: inp.dataset.date, shift: inp.value });
-    });
-    apiFetch('saveSchedule', { data: JSON.stringify(schedData) }).catch(()=>{});
+    try {
+      await apiFetch('saveSchedule', { data: JSON.stringify(schedData) });
+      toast('班表已儲存 ✅');
+    } catch(e) {
+      toast('儲存失敗，請確認連線','var(--red)');
+    }
+  } else {
+    toast('班表已儲存（本機）✅');
   }
-  toast('班表已儲存 ✅');
 }
 
 // ══════════════════════════════════════════
