@@ -335,7 +335,7 @@
         <div class="tbl-wrap">
           <table>
             <thead>
-              <tr><th>日期</th><th>員工</th><th>班表</th><th>上班</th><th>下班</th><th>實際工時</th><th>遲到(分)</th><th>狀態</th><th>操作</th></tr>
+              <tr><th>日期</th><th>員工</th><th>班表</th><th>上班</th><th>下班</th><th>休息開始</th><th>休息結束</th><th>實際工時</th><th>遲到(分)</th><th>狀態</th><th>操作</th></tr>
             </thead>
             <tbody id="attTbody">
               <tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:24px">請選擇查詢條件</td></tr>
@@ -774,7 +774,7 @@ async function loadAttendance() {
 }
 function renderAttTable(rows) {
   const tb = document.getElementById('attTbody');
-  if (!rows.length) { tb.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--text-muted)">無資料</td></tr>'; return; }
+  if (!rows.length) { tb.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:24px;color:var(--text-muted)">無資料</td></tr>'; return; }
   tb.innerHTML = rows.map(r => {
     const badge = {
       ok:'<span class="badge badge-ok">正常</span>',
@@ -789,6 +789,8 @@ function renderAttTable(rows) {
       <td>${r.shift||'—'}</td>
       <td>${r.inTime||'—'}</td>
       <td>${r.outTime||'—'}</td>
+      <td style="color:#0369A1">${r.breakStart||'—'}</td>
+      <td style="color:#0369A1">${r.breakEnd||'—'}</td>
       <td>${r.hours||'—'}</td>
       <td style="color:var(--red)">${r.lateMin||'—'}</td>
       <td>${badge}</td>
@@ -803,11 +805,11 @@ function exportAttendance() {
   const month = document.getElementById('attMonth').value;
   const empSel = document.getElementById('attEmp');
   const empName = empSel.options[empSel.selectedIndex].text;
-  const headers = ['日期','員工','班表','上班','下班','實際工時','遲到(分)','狀態'];
+  const headers = ['日期','員工','班表','上班','下班','休息開始','休息結束','實際工時','遲到(分)','狀態'];
   const statusMap = { ok:'正常', late:'遲到', early:'早退', absent:'缺勤', off:'休假', manual:'補打' };
   const rows = lastAttRows.map(r => [
     r.date, r.name, r.shift||'', r.inTime||'', r.outTime||'',
-    r.hours||'', r.lateMin||'0', statusMap[r.status]||r.status
+    r.breakStart||'', r.breakEnd||'', r.hours||'', r.lateMin||'0', statusMap[r.status]||r.status
   ]);
   const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
   const blob = new Blob(['\ufeff'+csv], {type:'text/csv;charset=utf-8'});
