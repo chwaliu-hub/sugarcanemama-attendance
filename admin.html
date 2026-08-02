@@ -860,21 +860,22 @@ function toDateStr(d) {
 async function loadAndRenderSchedule() {
   const startStr = document.getElementById('schedWeekStart').value;
   if (!startStr) return;
-  // 計算這週的日期範圍
   const start = new Date(startStr + 'T00:00:00');
   const days = [];
   for (let i = 0; i < 7; i++) {
     const d = new Date(start); d.setDate(start.getDate() + i);
     days.push(d);
   }
-  const month = startStr.substring(0, 7); // yyyy-MM
-  // 從 Sheets 載入這個月的班表
+  // 這週可能跨月，取出所有涉及的月份
+  const months = [...new Set(days.map(d => toDateStr(d).substring(0, 7)))];
   if (SCRIPT_URL) {
     try {
-      const res = await apiFetch('getSchedule', { month });
-      schedCache = res.scheduleMap || {};
+      schedCache = {};
+      for (const month of months) {
+        const res = await apiFetch('getSchedule', { month });
+        Object.assign(schedCache, res.scheduleMap || {});
+      }
     } catch(e) {
-      // 連線失敗就用空的
       schedCache = {};
     }
   }
