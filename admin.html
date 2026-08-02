@@ -985,7 +985,7 @@ function addTierThresholdRow(hours='', wage='') {
   `;
   list.appendChild(row);
 }
-function saveWageSettings() {
+async function saveWageSettings() {
   const rows = document.querySelectorAll('#tierThresholdList > div');
   const tierThresholds = [];
   rows.forEach(row => {
@@ -1004,7 +1004,17 @@ function saveWageSettings() {
     tierThresholds
   };
   localStorage.setItem('gc_wages', JSON.stringify(wageSettings));
-  toast('薪資設定已儲存 ✅');
+  // 同時存到 Sheets
+  if (SCRIPT_URL) {
+    try {
+      await apiFetch('saveWageSettings', { data: JSON.stringify(wageSettings) });
+      toast('薪資設定已儲存 ✅');
+    } catch(e) {
+      toast('本機已儲存，但 Sheets 同步失敗','var(--yellow-dark)');
+    }
+  } else {
+    toast('薪資設定已儲存 ✅');
+  }
 }
 async function calcPayroll() {
   const month = document.getElementById('payMonth').value;
@@ -1308,6 +1318,11 @@ async function initAdminData() {
         personalWage: remoteRules[e.id] || null
       }));
       localStorage.setItem('gc_employees', JSON.stringify(employees));
+    }
+    // 從 Sheets 載入薪資規則
+    if (res.wageSettings) {
+      wageSettings = res.wageSettings;
+      localStorage.setItem('gc_wages', JSON.stringify(wageSettings));
     }
   } catch(e) {
     // 連線失敗就用 localStorage 的資料
